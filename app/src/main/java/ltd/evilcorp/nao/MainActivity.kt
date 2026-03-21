@@ -17,28 +17,39 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.atlassian.onetime.core.TOTPGenerator
+import com.atlassian.onetime.model.TOTPSecret
+import kotlinx.coroutines.delay
 import ltd.evilcorp.nao.ui.theme.NaoTheme
 
 val dummyEntries = listOf(
     TotpItem(
         name = "Google",
         extraInfo = "user@example.com",
-        code = "123 456",
+        secret = "AAAAAAAAAA",
+        periodSeconds = 3,
     ),
     TotpItem(
         name = "GitHub",
         extraInfo = "ecorp-person",
-        code = "654 321",
+        secret = "AAAAAAAABB",
+        periodSeconds = 5,
     ),
     TotpItem(
         name = "Discord",
         extraInfo = "nao_fan_92",
-        code = "000 111",
+        secret = "AAAAAAAACC",
+        periodSeconds = 1,
     ),
 )
 
@@ -64,7 +75,8 @@ class MainActivity : ComponentActivity() {
 data class TotpItem(
     val name: String,
     val extraInfo: String,
-    val code: String,
+    val secret: String,
+    val periodSeconds: Int,
 )
 
 @Composable
@@ -72,6 +84,17 @@ fun TotpRow(
     totp: TotpItem,
     modifier: Modifier = Modifier,
 ) {
+    val generator = remember { TOTPGenerator(timeStepSeconds = totp.periodSeconds) }
+    var code by remember { mutableStateOf("000000") }
+
+    LaunchedEffect(totp.secret) {
+        val totpSecret = TOTPSecret.fromBase32EncodedString(totp.secret)
+        while (true) {
+            code = generator.generateCurrent(totpSecret).value
+            delay(1000)
+        }
+    }
+
     Card(
         modifier = modifier,
         shape = MaterialTheme.shapes.medium,
@@ -96,13 +119,19 @@ fun TotpRow(
                 )
             }
             Text(
-                text = totp.code,
+                text = formatCode(code),
                 style = MaterialTheme.typography.headlineMedium,
                 color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.Bold,
             )
         }
     }
+}
+
+private fun formatCode(code: String) = if (code.length == 6) {
+    "${code.take(3)} ${code.takeLast(3)}"
+} else {
+    code
 }
 
 @Composable
