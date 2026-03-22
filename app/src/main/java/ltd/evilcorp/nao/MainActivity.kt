@@ -1,5 +1,7 @@
 package ltd.evilcorp.nao
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -64,14 +66,23 @@ val dummyEntries = listOf(
     ),
 )
 
+private fun isOtpAuthIntent(intent: Intent): Boolean = intent.action == Intent.ACTION_VIEW && intent.data?.scheme == "otpauth"
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        val totpArg = if (isOtpAuthIntent(intent)) {
+            TotpItem.fromUrl(intent.data!!)
+        } else {
+            null
+        }
+
         enableEdgeToEdge()
         setContent {
             NaoTheme {
                 var items by remember { mutableStateOf(dummyEntries) }
-                var showSheet by remember { mutableStateOf(false) }
+                var showSheet by remember { mutableStateOf(totpArg != null) }
 
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
@@ -98,6 +109,7 @@ class MainActivity : ComponentActivity() {
                                 items = items + newItem
                                 showSheet = false
                             },
+                            totpArg,
                         )
                     }
                 }
@@ -111,19 +123,74 @@ data class TotpItem(
     val extraInfo: String,
     val secret: String,
     val periodSeconds: Int,
-)
+) {
+    companion object {
+        fun fromUrl(uri: Uri): TotpItem? {
+            val pathSegments = uri.pathSegments
+            if (pathSegments.size != 1) {
+                return null
+            }
+
+            val path = pathSegments[0]
+
+            if (uri.host != "totp") {
+                return null
+            }
+
+            val colons = path.count { it == ':' }
+            if (colons != 1 && colons != 0) {
+                return null
+            }
+
+            val hasIssuerPrefix = colons == 1
+
+            val secret = uri.getQueryParameter("secret") ?: return null
+
+            var name = uri.getQueryParameter("issuer")
+            if (name == null && !hasIssuerPrefix) {
+                return null
+            } else if (name == null) {
+                name = path.substringBefore(':')
+            }
+
+            val extraInfo = if (hasIssuerPrefix) {
+                path.substringAfter(':')
+            } else {
+                path
+            }
+
+            val period = uri.getQueryParameter("period") ?: "30"
+            val periodSeconds = period.toIntOrNull() ?: return null
+
+            return TotpItem(
+                name = name,
+                extraInfo = extraInfo,
+                secret = secret,
+                periodSeconds = periodSeconds,
+            )
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddTotpSheet(
     onDismiss: () -> Unit,
     onSave: (TotpItem) -> Unit,
+    initialValues: TotpItem?,
 ) {
+    val initial = initialValues ?: TotpItem(
+        name = "",
+        extraInfo = "",
+        secret = "",
+        periodSeconds = 30,
+    )
+
     val sheetState = rememberModalBottomSheetState()
-    var name by remember { mutableStateOf("") }
-    var extraInfo by remember { mutableStateOf("") }
-    var secret by remember { mutableStateOf("") }
-    var period by remember { mutableStateOf("30") }
+    var name by remember { mutableStateOf(initial.name) }
+    var extraInfo by remember { mutableStateOf(initial.extraInfo) }
+    var secret by remember { mutableStateOf(initial.secret) }
+    var period by remember { mutableStateOf(initial.periodSeconds.toString()) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
