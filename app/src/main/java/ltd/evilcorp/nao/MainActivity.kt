@@ -6,16 +6,26 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -24,6 +34,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -59,13 +70,36 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             NaoTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                var items by remember { mutableStateOf(dummyEntries) }
+                var showSheet by remember { mutableStateOf(false) }
+
+                Scaffold(
+                    modifier = Modifier.fillMaxSize(),
+                    floatingActionButton = {
+                        FloatingActionButton(onClick = { showSheet = true }) {
+                            Icon(
+                                painter = painterResource(android.R.drawable.ic_input_add),
+                                contentDescription = "Add",
+                            )
+                        }
+                    }
+                ) { innerPadding ->
                     TotpList(
-                        items = dummyEntries,
+                        items = items,
                         modifier = Modifier
                             .padding(innerPadding)
                             .fillMaxSize(),
                     )
+
+                    if (showSheet) {
+                        AddTotpSheet(
+                            onDismiss = { showSheet = false },
+                            onSave = { newItem ->
+                                items = items + newItem
+                                showSheet = false
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -78,6 +112,70 @@ data class TotpItem(
     val secret: String,
     val periodSeconds: Int,
 )
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AddTotpSheet(
+    onDismiss: () -> Unit,
+    onSave: (TotpItem) -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState()
+    var name by remember { mutableStateOf("") }
+    var extraInfo by remember { mutableStateOf("") }
+    var secret by remember { mutableStateOf("") }
+    var period by remember { mutableStateOf("30") }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text("Add New TOTP", style = MaterialTheme.typography.headlineSmall)
+            TextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("Name") },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            TextField(
+                value = extraInfo,
+                onValueChange = { extraInfo = it },
+                label = { Text("Extra Info") },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            TextField(
+                value = secret,
+                onValueChange = { secret = it },
+                label = { Text("Secret (Base32)") },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            TextField(
+                value = period,
+                onValueChange = { period = it },
+                label = { Text("Period (seconds)") },
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            Button(
+                onClick = {
+                    val periodInt = period.toIntOrNull() ?: 30
+                    onSave(TotpItem(name, extraInfo, secret, periodInt))
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Save")
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+        }
+    }
+}
 
 @Composable
 fun TotpRow(
@@ -139,7 +237,13 @@ fun TotpList(items: List<TotpItem>, modifier: Modifier = Modifier) {
     LazyColumn(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(8.dp),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+        contentPadding = PaddingValues(
+            start = 16.dp,
+            top = 16.dp,
+            end = 16.dp,
+            // This is silly, but we have to make sure the FAB doesn't overlap the last item in the list.
+            bottom = 80.dp,
+        ),
     ) {
         items(items) { item ->
             TotpRow(
