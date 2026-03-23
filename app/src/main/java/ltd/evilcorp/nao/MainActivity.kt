@@ -82,7 +82,7 @@ class MainActivity : ComponentActivity() {
                                 contentDescription = "Add",
                             )
                         }
-                    }
+                    },
                 ) { innerPadding ->
                     TotpList(
                         items = items,
@@ -97,7 +97,7 @@ class MainActivity : ComponentActivity() {
                             onSave = { newItem ->
                                 items = items + newItem
                                 showSheet = false
-                            }
+                            },
                         )
                     }
                 }
@@ -134,7 +134,7 @@ fun AddTotpSheet(
                 .padding(16.dp)
                 .fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text("Add New TOTP", style = MaterialTheme.typography.headlineSmall)
             TextField(
@@ -167,7 +167,7 @@ fun AddTotpSheet(
                     val periodInt = period.toIntOrNull() ?: 30
                     onSave(TotpItem(name, extraInfo, secret, periodInt))
                 },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
             ) {
                 Text("Save")
             }
@@ -226,14 +226,18 @@ fun TotpRow(
     }
 }
 
-private fun formatCode(code: String) = if (code.length == 6) {
-    "${code.take(3)} ${code.takeLast(3)}"
-} else {
-    code
-}
+private fun formatCode(code: String) =
+    if (code.length == 6) {
+        "${code.take(3)} ${code.takeLast(3)}"
+    } else {
+        code
+    }
 
 @Composable
-fun TotpList(items: List<TotpItem>, modifier: Modifier = Modifier) {
+fun TotpList(
+    items: List<TotpItem>,
+    modifier: Modifier = Modifier,
+) {
     LazyColumn(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(8.dp),
