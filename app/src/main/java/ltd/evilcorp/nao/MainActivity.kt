@@ -45,27 +45,6 @@ import com.atlassian.onetime.model.TOTPSecret
 import kotlinx.coroutines.delay
 import ltd.evilcorp.nao.ui.theme.NaoTheme
 
-val dummyEntries = listOf(
-    TotpItem(
-        name = "Google",
-        extraInfo = "user@example.com",
-        secret = "AAAAAAAAAA",
-        periodSeconds = 3,
-    ),
-    TotpItem(
-        name = "GitHub",
-        extraInfo = "ecorp-person",
-        secret = "AAAAAAAABB",
-        periodSeconds = 5,
-    ),
-    TotpItem(
-        name = "Discord",
-        extraInfo = "nao_fan_92",
-        secret = "AAAAAAAACC",
-        periodSeconds = 1,
-    ),
-)
-
 private fun isOtpAuthIntent(intent: Intent): Boolean = intent.action == Intent.ACTION_VIEW && intent.data?.scheme == "otpauth"
 
 class MainActivity : ComponentActivity() {
@@ -81,7 +60,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             NaoTheme {
-                var items by remember { mutableStateOf(dummyEntries) }
+                var items by remember { mutableStateOf(listOf<TotpItem>()) }
                 var showSheet by remember { mutableStateOf(totpArg != null) }
 
                 Scaffold(
@@ -328,6 +307,27 @@ fun TotpList(
 @Preview(showBackground = true)
 @Composable
 fun GreetingPreview() {
+    val dummyEntries = listOf(
+        TotpItem(
+            name = "Google",
+            extraInfo = "user@example.com",
+            secret = "AAAAAAAAAA",
+            periodSeconds = 3,
+        ),
+        TotpItem(
+            name = "GitHub",
+            extraInfo = "ecorp-person",
+            secret = "AAAAAAAABB",
+            periodSeconds = 5,
+        ),
+        TotpItem(
+            name = "Discord",
+            extraInfo = "nao_fan_92",
+            secret = "AAAAAAAACC",
+            periodSeconds = 1,
+        ),
+    )
+
     NaoTheme {
         TotpList(
             items = dummyEntries,
