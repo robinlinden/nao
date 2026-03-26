@@ -15,3 +15,28 @@ jobs:
           java-version: 17
       - run: curl -sSLO https://github.com/pinterest/ktlint/releases/download/1.8.0/ktlint && chmod a+x ktlint
       - run: ./ktlint
+
+  gradle:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-24.04
+          - macos-15
+          - windows-2025
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: adopt
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          # The cache here is proprietary with a weird license.
+          # https://github.com/gradle/actions/blob/39e147cb9de83bb9910b8ef8bd7fff0ee20fcd6f/docs/setup-gradle.md#licensing-notice
+          cache-disabled: true
+      - run: ./gradlew build
+
+concurrency:
+  group: ${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
