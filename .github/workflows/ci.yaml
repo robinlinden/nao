@@ -36,6 +36,20 @@ jobs:
           # https://github.com/gradle/actions/blob/39e147cb9de83bb9910b8ef8bd7fff0ee20fcd6f/docs/setup-gradle.md#licensing-notice
           cache-disabled: true
       - run: ./gradlew build
+      # https://github.blog/changelog/2023-02-23-hardware-accelerated-android-virtualization-on-actions-windows-and-linux-larger-hosted-runners/
+      - name: Enable hardware acceleration
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Run Android tests
+        if: startsWith(matrix.os, 'ubuntu')
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 36
+          arch: x86_64
+          script: ./gradlew connectedCheck
 
 concurrency:
   group: ${{ github.head_ref || github.run_id }}
