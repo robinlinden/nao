@@ -116,6 +116,10 @@ fun AddTotpSheet(
     var secret by remember { mutableStateOf(initial.secret) }
     var period by remember { mutableStateOf(initial.periodSeconds.toString()) }
 
+    var nameError by remember { mutableStateOf<String?>(null) }
+    var secretError by remember { mutableStateOf<String?>(null) }
+    var periodError by remember { mutableStateOf<String?>(null) }
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
@@ -130,7 +134,12 @@ fun AddTotpSheet(
             Text("Add New TOTP", style = MaterialTheme.typography.headlineSmall)
             TextField(
                 value = name,
-                onValueChange = { name = it },
+                onValueChange = {
+                    name = it
+                    nameError = validateName(it)
+                },
+                isError = nameError != null,
+                supportingText = { nameError?.let { Text(it) } },
                 label = { Text("Name") },
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -139,26 +148,39 @@ fun AddTotpSheet(
                 onValueChange = { extraInfo = it },
                 label = { Text("Extra Info") },
                 modifier = Modifier.fillMaxWidth(),
+                // Hack to give this TextField the same margins as the rest.
+                supportingText = { },
             )
             TextField(
                 value = secret,
-                onValueChange = { secret = it },
+                onValueChange = {
+                    secret = it
+                    secretError = validateSecret(it)
+                },
                 label = { Text("Secret (Base32)") },
+                isError = secretError != null,
+                supportingText = { secretError?.let { Text(it) } },
                 modifier = Modifier.fillMaxWidth(),
             )
             TextField(
                 value = period,
-                onValueChange = { period = it },
+                onValueChange = {
+                    period = it
+                    periodError = validatePeriod(it)
+                },
                 label = { Text("Period (seconds)") },
+                isError = periodError != null,
+                supportingText = { periodError?.let { Text(it) } },
                 modifier = Modifier.fillMaxWidth(),
             )
 
+            val hasRequiredValues = name.isNotEmpty() && secret.isNotEmpty() && period.isNotEmpty()
             Button(
                 onClick = {
-                    val periodInt = period.toIntOrNull() ?: 30
-                    onSave(TotpItem(name, extraInfo, secret, periodInt))
+                    onSave(TotpItem(name, extraInfo, secret, period.toInt()))
                 },
                 modifier = Modifier.fillMaxWidth(),
+                enabled = hasRequiredValues && nameError == null && secretError == null && periodError == null,
             ) {
                 Text("Save")
             }
@@ -166,6 +188,33 @@ fun AddTotpSheet(
             Spacer(modifier = Modifier.height(32.dp))
         }
     }
+}
+
+private fun validateName(name: String): String? = if (name.isEmpty()) "Name may not be empty" else null
+
+private fun isBase32Character(char: Char): Boolean = char in 'A'..'Z' || char in 'a'..'z' || char in '2'..'7' || char == '='
+
+private fun validateSecret(secret: String): String? {
+    if (secret.any { !isBase32Character(it) }) return "Secret must be base32 encoded"
+    if (secret.substringAfter('=', "").any { it != '=' }) return "Secret must be base32 encoded"
+
+    // https://datatracker.ietf.org/doc/html/rfc4226#section-4
+    if (secret.length < 16) return "Secret must be at least 16 characters long"
+
+    return try {
+        val s = TOTPSecret.fromBase32EncodedString(secret)
+        val generator = TOTPGenerator()
+        generator.generateCurrent(s)
+        null
+    } catch (_: Exception) {
+        "Secret must be base32 encoded"
+    }
+}
+
+private fun validatePeriod(period: String): String? {
+    val p = period.toIntOrNull() ?: return "Must be an integer"
+    if (p !in 1..3600) return "Period must be between 1 and 3600 seconds"
+    return null
 }
 
 @Composable
