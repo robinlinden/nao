@@ -29,9 +29,12 @@ class IntegrationTest {
             // Check if the sheet is shown with the correct data.
             composeTestRule.onNodeWithText("Add New TOTP").assertIsDisplayed()
             composeTestRule.onNodeWithText("Example").assertIsDisplayed()
-            composeTestRule.onNodeWithText("user@example.com").assertIsDisplayed()
-            composeTestRule.onNodeWithText("AAAAAAAAAAAAAAAA").assertIsDisplayed()
-            composeTestRule.onNodeWithText("29").assertIsDisplayed()
+
+            // Depending on what device the tests run on, some of these may be
+            // below the fold and require scrolling before being visible.
+            composeTestRule.onNodeWithText("user@example.com").assertExists()
+            composeTestRule.onNodeWithText("AAAAAAAAAAAAAAAA").assertExists()
+            composeTestRule.onNodeWithText("29").assertExists()
 
             // Click save.
             composeTestRule.onNodeWithText("Save").performClick()
