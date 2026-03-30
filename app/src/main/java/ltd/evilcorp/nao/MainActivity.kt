@@ -1,7 +1,10 @@
 package ltd.evilcorp.nao
 
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.util.AtomicFile
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -41,10 +44,60 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.atlassian.onetime.core.TOTPGenerator
 import com.atlassian.onetime.model.TOTPSecret
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import ltd.evilcorp.nao.ui.theme.NaoTheme
+import org.json.JSONArray
+import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
+import java.util.Date
 
 private fun isOtpAuthIntent(intent: Intent): Boolean = intent.action == Intent.ACTION_VIEW && intent.data?.scheme == "otpauth"
+
+private suspend fun saveItems(
+    context: Context,
+    items: List<TotpItem>,
+) = withContext(Dispatchers.IO) {
+    val array = JSONArray()
+    items.forEach { array.put(it.toJson()) }
+
+    val atomicFile = AtomicFile(File(context.filesDir, "nao.json"))
+    var fos: FileOutputStream? = null
+    try {
+        fos = atomicFile.startWrite()
+        fos.write(array.toString().toByteArray())
+        atomicFile.finishWrite(fos)
+    } catch (e: IOException) {
+        Log.e("MainActivity", "Error saving items", e)
+        atomicFile.failWrite(fos)
+    }
+}
+
+private suspend fun loadItems(context: Context): List<TotpItem> =
+    withContext(Dispatchers.IO) {
+        val file = File(context.filesDir, "nao.json")
+        if (!file.exists()) return@withContext emptyList()
+
+        try {
+            val atomicFile = AtomicFile(file)
+            val jsonString = atomicFile.openRead().bufferedReader().use { it.readText() }
+            val array = JSONArray(jsonString)
+            val items = mutableListOf<TotpItem>()
+            for (i in 0 until array.length()) {
+                items.add(TotpItem.fromJson(array.getJSONObject(i)))
+            }
+            items
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error loading items", e)
+            // If the file is corrupted, move it out of the way and let future Robin deal with it.
+            val backupFile = File(context.filesDir, "nao-${Date().time}.json.old")
+            file.renameTo(backupFile)
+            emptyList()
+        }
+    }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -56,10 +109,16 @@ class MainActivity : ComponentActivity() {
             null
         }
 
+        val items = runBlocking {
+            loadItems(this@MainActivity)
+        }.also {
+            Log.i("MainActivity", "Loaded ${it.size} items")
+        }
+
         enableEdgeToEdge()
         setContent {
             NaoTheme {
-                var items by remember { mutableStateOf(listOf<TotpItem>()) }
+                var items by remember { mutableStateOf(items) }
                 var showSheet by remember { mutableStateOf(totpArg != null) }
 
                 Scaffold(
@@ -89,6 +148,11 @@ class MainActivity : ComponentActivity() {
                             },
                             totpArg,
                         )
+                    }
+
+                    LaunchedEffect(items) {
+                        Log.i("MainActivity", "Saving ${items.size} items")
+                        saveItems(this@MainActivity, items)
                     }
                 }
             }

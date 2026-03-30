@@ -1,6 +1,7 @@
 package ltd.evilcorp.nao
 
 import android.net.Uri
+import org.json.JSONObject
 
 data class TotpItem(
     val name: String,
@@ -8,7 +9,23 @@ data class TotpItem(
     val secret: String,
     val periodSeconds: Int,
 ) {
+    fun toJson(): JSONObject =
+        JSONObject().apply {
+            put("name", name)
+            put("extraInfo", extraInfo)
+            put("secret", secret)
+            put("periodSeconds", periodSeconds)
+        }
+
     companion object {
+        fun fromJson(json: JSONObject): TotpItem =
+            TotpItem(
+                name = json.getString("name"),
+                extraInfo = json.getString("extraInfo"),
+                secret = json.getString("secret"),
+                periodSeconds = json.getInt("periodSeconds"),
+            )
+
         fun fromUrl(uri: Uri): TotpItem? {
             val pathSegments = uri.pathSegments
             if (pathSegments.size != 1) {
