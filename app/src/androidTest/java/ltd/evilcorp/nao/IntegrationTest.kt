@@ -44,4 +44,26 @@ class IntegrationTest {
             composeTestRule.onNodeWithText("user@example.com").assertIsDisplayed()
         }
     }
+
+    @Test
+    fun testStatePersistence() {
+        val label = "PersistenceTest"
+        val user = "bee@bbbthats3bees.be"
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            data = Uri.parse("otpauth://totp/$label:$user?secret=BBBBBBBBBBBBBBBB&issuer=$label")
+            setClassName("ltd.evilcorp.nao", "ltd.evilcorp.nao.MainActivity")
+        }
+
+        // Add the TOTP entry.
+        ActivityScenario.launch<MainActivity>(intent).use {
+            composeTestRule.onNodeWithText("Save").performClick()
+            composeTestRule.onNodeWithText(label).assertIsDisplayed()
+        }
+
+        // Re-open the app, and check that entry is still there.
+        ActivityScenario.launch(MainActivity::class.java).use {
+            composeTestRule.onNodeWithText(label).assertIsDisplayed()
+            composeTestRule.onNodeWithText(user).assertIsDisplayed()
+        }
+    }
 }
