@@ -24,6 +24,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
@@ -33,6 +34,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -293,12 +295,20 @@ fun TotpRow(
 ) {
     val generator = remember { TOTPGenerator(timeStepSeconds = totp.periodSeconds) }
     var code by remember { mutableStateOf("000000") }
+    var progress by remember { mutableFloatStateOf(0f) }
 
-    LaunchedEffect(totp.secret) {
+    LaunchedEffect(totp.secret, totp.periodSeconds) {
         val totpSecret = TOTPSecret.fromBase32EncodedString(totp.secret)
         while (true) {
             code = generator.generateCurrent(totpSecret).value
-            delay(1000)
+
+            val timeStepMs = totp.periodSeconds * 1000L
+            val elapsedInStepMs = System.currentTimeMillis() % timeStepMs
+            progress = 1f - (elapsedInStepMs.toFloat() / timeStepMs)
+
+            // TODO(robinlinden): Scale this based on the period. 100ms looks fine for longer
+            //  periods, but very silly for shorter ones.
+            delay(100)
         }
     }
 
@@ -306,30 +316,36 @@ fun TotpRow(
         modifier = modifier,
         shape = MaterialTheme.shapes.medium,
     ) {
-        Row(
-            modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
+        Column {
+            Row(
+                modifier = Modifier
+                    .padding(16.dp)
+                    .fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = totp.name,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        text = totp.extraInfo,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 Text(
-                    text = totp.name,
-                    style = MaterialTheme.typography.titleLarge,
+                    text = formatCode(code),
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Bold,
                 )
-                Text(
-                    text = totp.extraInfo,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
             }
-            Text(
-                text = formatCode(code),
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Bold,
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier.fillMaxWidth(),
             )
         }
     }
