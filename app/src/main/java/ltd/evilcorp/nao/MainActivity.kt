@@ -111,7 +111,7 @@ class MainActivity : ComponentActivity() {
             null
         }
 
-        val items = runBlocking {
+        val initialItems = runBlocking {
             loadItems(this@MainActivity)
         }.also {
             Log.i("MainActivity", "Loaded ${it.size} items")
@@ -120,13 +120,13 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             NaoTheme {
-                var items by remember { mutableStateOf(items) }
-                var showSheet by remember { mutableStateOf(totpArg != null) }
+                var items by remember { mutableStateOf(initialItems) }
+                var showAddSheet by remember { mutableStateOf(totpArg != null) }
 
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
                     floatingActionButton = {
-                        FloatingActionButton(onClick = { showSheet = true }) {
+                        FloatingActionButton(onClick = { showAddSheet = true }) {
                             Icon(
                                 painter = painterResource(android.R.drawable.ic_input_add),
                                 contentDescription = "Add",
@@ -141,14 +141,14 @@ class MainActivity : ComponentActivity() {
                             .fillMaxSize(),
                     )
 
-                    if (showSheet) {
+                    if (showAddSheet) {
                         AddTotpSheet(
-                            onDismiss = { showSheet = false },
+                            onDismiss = { showAddSheet = false },
                             onSave = { newItem ->
                                 items = items + newItem
-                                showSheet = false
+                                showAddSheet = false
                             },
-                            totpArg,
+                            initialValues = totpArg,
                         )
                     }
 
