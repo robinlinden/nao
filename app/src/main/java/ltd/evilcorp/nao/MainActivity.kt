@@ -8,6 +8,7 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -19,16 +20,20 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -122,6 +127,7 @@ class MainActivity : ComponentActivity() {
             NaoTheme {
                 var items by remember { mutableStateOf(initialItems) }
                 var showAddSheet by remember { mutableStateOf(totpArg != null) }
+                var itemToActions by remember { mutableStateOf<TotpItem?>(null) }
 
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
@@ -136,6 +142,7 @@ class MainActivity : ComponentActivity() {
                 ) { innerPadding ->
                     TotpList(
                         items = items,
+                        onLongClick = { itemToActions = it },
                         modifier = Modifier
                             .padding(innerPadding)
                             .fillMaxSize(),
@@ -149,6 +156,17 @@ class MainActivity : ComponentActivity() {
                                 showAddSheet = false
                             },
                             initialValues = totpArg,
+                        )
+                    }
+
+                    if (itemToActions != null) {
+                        TotpActionsSheet(
+                            totp = itemToActions!!,
+                            onDismiss = { itemToActions = null },
+                            onDelete = {
+                                items = items.filter { it != itemToActions }
+                                itemToActions = null
+                            },
                         )
                     }
 
@@ -256,6 +274,57 @@ fun AddTotpSheet(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TotpActionsSheet(
+    totp: TotpItem,
+    onDismiss: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    var showConfirmation by remember { mutableStateOf(false) }
+
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(modifier = Modifier.padding(bottom = 32.dp)) {
+            ListItem(
+                headlineContent = { Text("Delete") },
+                leadingContent = {
+                    Icon(
+                        painter = painterResource(android.R.drawable.ic_menu_delete),
+                        contentDescription = null,
+                    )
+                },
+                modifier = Modifier.combinedClickable(
+                    onClick = { showConfirmation = true },
+                ),
+                colors = ListItemDefaults.colors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                ),
+            )
+        }
+    }
+
+    if (showConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showConfirmation = false },
+            title = { Text("Delete TOTP") },
+            text = { Text("Are you sure you want to delete ${totp.name}? This action cannot be undone.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showConfirmation = false
+                    onDelete()
+                }) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConfirmation = false }) {
+                    Text("Cancel")
+                }
+            },
+        )
+    }
+}
+
 private fun validateName(name: String): String? = if (name.isEmpty()) "Name may not be empty" else null
 
 private fun isBase32Character(char: Char): Boolean = char in 'A'..'Z' || char in 'a'..'z' || char in '2'..'7' || char == '='
@@ -291,6 +360,7 @@ private fun validatePeriod(period: String): String? {
 @Composable
 fun TotpRow(
     totp: TotpItem,
+    onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val generator = remember { TOTPGenerator(timeStepSeconds = totp.periodSeconds) }
@@ -313,7 +383,10 @@ fun TotpRow(
     }
 
     Card(
-        modifier = modifier,
+        modifier = modifier.combinedClickable(
+            onClick = { },
+            onLongClick = onLongClick,
+        ),
         shape = MaterialTheme.shapes.medium,
     ) {
         Column {
@@ -361,6 +434,7 @@ private fun formatCode(code: String) =
 @Composable
 fun TotpList(
     items: List<TotpItem>,
+    onLongClick: (TotpItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -377,6 +451,7 @@ fun TotpList(
         items(items) { item ->
             TotpRow(
                 totp = item,
+                onLongClick = { onLongClick(item) },
                 modifier = Modifier.fillMaxWidth(),
             )
         }
@@ -410,6 +485,7 @@ fun GreetingPreview() {
     NaoTheme {
         TotpList(
             items = dummyEntries,
+            onLongClick = {},
         )
     }
 }
