@@ -1,14 +1,22 @@
 package ltd.evilcorp.nao
 
+import android.app.Activity
+import android.app.Instrumentation
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ActivityScenario
+import androidx.test.espresso.intent.Intents
+import androidx.test.espresso.intent.Intents.intending
+import androidx.test.espresso.intent.matcher.IntentMatchers.hasAction
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -51,6 +59,55 @@ class IntegrationTest {
             // Check if it's added to the list.
             composeTestRule.onNodeWithText("Example").assertIsDisplayed()
             composeTestRule.onNodeWithText("user@example.com").assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun testExport() {
+        Intents.init()
+        try {
+            val label = "ExportTest"
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                data = Uri.parse("otpauth://totp/$label:user@example.com?secret=AAAAAAAAAAAAAAAA")
+                setClassName("ltd.evilcorp.nao", "ltd.evilcorp.nao.MainActivity")
+            }
+
+            val context = InstrumentationRegistry.getInstrumentation().targetContext
+            val exportFile = File(context.cacheDir, "exported.json")
+            if (exportFile.exists()) exportFile.delete()
+            val exportUri = Uri.fromFile(exportFile)
+
+            val resultData = Intent().apply {
+                data = exportUri
+            }
+            val result = Instrumentation.ActivityResult(Activity.RESULT_OK, resultData)
+            intending(hasAction(Intent.ACTION_CREATE_DOCUMENT)).respondWith(result)
+
+            ActivityScenario.launch<MainActivity>(intent).use {
+                // Add the entry.
+                composeTestRule.onNodeWithText("Save").performClick()
+                composeTestRule.onNodeWithText(label).assertIsDisplayed()
+
+                // Open menu.
+                composeTestRule.onNodeWithContentDescription("More").performClick()
+                // Click Export.
+                composeTestRule.onNodeWithText("Export JSON").performClick()
+
+                // Wait for success snackbar.
+                composeTestRule.waitUntil(5000) {
+                    composeTestRule
+                        .onAllNodesWithText("Exported successfully")
+                        .fetchSemanticsNodes()
+                        .isNotEmpty()
+                }
+
+                // Verify file content.
+                val content = exportFile.readText()
+                assertTrue(content.contains(label))
+                assertTrue(content.contains("AAAAAAAAAAAAAAAA"))
+            }
+        } finally {
+            Intents.release()
         }
     }
 

@@ -6,8 +6,10 @@ import android.os.Bundle
 import android.util.AtomicFile
 import android.util.Log
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -23,18 +25,24 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -42,6 +50,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,6 +62,7 @@ import com.atlassian.onetime.core.TOTPGenerator
 import com.atlassian.onetime.model.TOTPSecret
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import ltd.evilcorp.nao.ui.theme.NaoTheme
@@ -107,6 +117,7 @@ private suspend fun loadItems(context: Context): List<TotpItem> =
     }
 
 class MainActivity : ComponentActivity() {
+    @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -128,9 +139,61 @@ class MainActivity : ComponentActivity() {
                 var items by remember { mutableStateOf(initialItems) }
                 var showAddSheet by remember { mutableStateOf(totpArg != null) }
                 var itemToActions by remember { mutableStateOf<TotpItem?>(null) }
+                var showMenu by remember { mutableStateOf(false) }
+
+                val snackbarHostState = remember { SnackbarHostState() }
+                val scope = rememberCoroutineScope()
+
+                val exportLauncher = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.CreateDocument("application/json"),
+                ) { uri ->
+                    if (uri == null) {
+                        return@rememberLauncherForActivityResult
+                    }
+
+                    scope.launch(Dispatchers.IO) {
+                        try {
+                            val json = JSONArray().apply { items.forEach { put(it.toJson()) } }.toString(2)
+                            contentResolver.openOutputStream(uri)?.use { os ->
+                                os.write(json.toByteArray())
+                            } ?: throw Exception("Failed to open output stream")
+
+                            snackbarHostState.showSnackbar("Exported successfully")
+                        } catch (e: Exception) {
+                            snackbarHostState.showSnackbar("Export failed")
+                            Log.e("MainActivity", "Export failed", e)
+                        }
+                    }
+                }
 
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
+                    snackbarHost = { SnackbarHost(snackbarHostState) },
+                    topBar = {
+                        TopAppBar(
+                            title = { Text("Nao") },
+                            actions = {
+                                IconButton(onClick = { showMenu = true }) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.ic_more_vert),
+                                        contentDescription = "More",
+                                    )
+                                }
+                                DropdownMenu(
+                                    expanded = showMenu,
+                                    onDismissRequest = { showMenu = false },
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Export JSON") },
+                                        onClick = {
+                                            showMenu = false
+                                            exportLauncher.launch("nao.json")
+                                        },
+                                    )
+                                }
+                            },
+                        )
+                    },
                     floatingActionButton = {
                         FloatingActionButton(onClick = { showAddSheet = true }) {
                             Icon(
