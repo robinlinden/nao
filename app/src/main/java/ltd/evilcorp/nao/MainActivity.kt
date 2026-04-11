@@ -460,7 +460,7 @@ fun TotpList(
 
 @Preview(showBackground = true)
 @Composable
-fun GreetingPreview() {
+private fun GreetingPreview() {
     val dummyEntries = listOf(
         TotpItem(
             name = "Google",
