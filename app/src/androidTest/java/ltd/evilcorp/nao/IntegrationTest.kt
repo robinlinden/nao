@@ -6,12 +6,15 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.test.performTouchInput
 import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.intent.Intents
 import androidx.test.espresso.intent.Intents.intending
@@ -156,6 +159,37 @@ class IntegrationTest {
         ActivityScenario.launch(MainActivity::class.java).use {
             composeTestRule.onNodeWithText(label).assertIsDisplayed()
             composeTestRule.onNodeWithText(user).assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun testDelete() {
+        val label = "DeleteMe"
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            data = Uri.parse("otpauth://totp/$label:user@example.com?secret=AAAAAAAAAAAAAAAA")
+            setClassName("ltd.evilcorp.nao", "ltd.evilcorp.nao.MainActivity")
+        }
+
+        ActivityScenario.launch<MainActivity>(intent).use {
+            // Add the entry first.
+            composeTestRule.onNodeWithText("Save").performClick()
+            composeTestRule.onNodeWithText(label).assertIsDisplayed()
+
+            // Long-press the entry to open the actions sheet.
+            composeTestRule.onNodeWithText(label).performTouchInput {
+                longClick()
+            }
+
+            // Click "Delete" in the actions sheet.
+            composeTestRule.onNodeWithText("Delete").performClick()
+
+            // Confirm deletion in the dialog.
+            // There are now two "Delete" texts on screen (sheet + dialog).
+            // The one in the dialog is the one we want.
+            composeTestRule.onAllNodesWithText("Delete").onLast().performClick()
+
+            // Verify the entry is gone.
+            composeTestRule.onNodeWithText(label).assertDoesNotExist()
         }
     }
 }
