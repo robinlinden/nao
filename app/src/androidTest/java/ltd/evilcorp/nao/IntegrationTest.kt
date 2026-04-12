@@ -10,6 +10,8 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextReplacement
 import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.intent.Intents
 import androidx.test.espresso.intent.Intents.intending
@@ -59,6 +61,30 @@ class IntegrationTest {
             // Check if it's added to the list.
             composeTestRule.onNodeWithText("Example").assertIsDisplayed()
             composeTestRule.onNodeWithText("user@example.com").assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun testManualOtpAuthInput() {
+        ActivityScenario.launch(MainActivity::class.java).use {
+            // Click the add button.
+            composeTestRule.onNodeWithContentDescription("Add").performClick()
+
+            // Check if the sheet is shown.
+            composeTestRule.onNodeWithText("Add New TOTP").assertIsDisplayed()
+
+            // Fill in the data.
+            composeTestRule.onNodeWithText("Name").performTextInput("something something")
+            composeTestRule.onNodeWithText("Extra Info").performTextInput("robin@example.com")
+            composeTestRule.onNodeWithText("Secret (Base32)").performTextInput("ABCDEFGHIJKLMNOP")
+            composeTestRule.onNodeWithText("Period (seconds)").performTextReplacement("60")
+
+            // Click save.
+            composeTestRule.onNodeWithText("Save").performClick()
+
+            // Check if it's added to the list.
+            composeTestRule.onNodeWithText("something something").assertIsDisplayed()
+            composeTestRule.onNodeWithText("robin@example.com").assertIsDisplayed()
         }
     }
 
