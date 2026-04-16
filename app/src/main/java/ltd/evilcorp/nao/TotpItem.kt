@@ -3,11 +3,29 @@ package ltd.evilcorp.nao
 import android.net.Uri
 import org.json.JSONObject
 
+enum class Digest {
+    Sha1,
+    Sha256,
+    Sha512,
+    ;
+
+    companion object {
+        fun fromString(value: String): Digest? =
+            when (value.lowercase()) {
+                "sha1" -> Sha1
+                "sha256" -> Sha256
+                "sha512" -> Sha512
+                else -> null
+            }
+    }
+}
+
 data class TotpItem(
     val name: String,
     val extraInfo: String,
     val secret: String,
     val periodSeconds: Int,
+    val digest: Digest,
 ) {
     fun toJson(): JSONObject =
         JSONObject().apply {
@@ -15,6 +33,7 @@ data class TotpItem(
             put("extraInfo", extraInfo)
             put("secret", secret)
             put("periodSeconds", periodSeconds)
+            put("digest", digest.name.lowercase())
         }
 
     companion object {
@@ -24,6 +43,16 @@ data class TotpItem(
                 extraInfo = json.getString("extraInfo"),
                 secret = json.getString("secret"),
                 periodSeconds = json.getInt("periodSeconds"),
+                digest = if (json.has("digest")) {
+                    when (json.getString("digest").lowercase()) {
+                        "sha1" -> Digest.Sha1
+                        "sha256" -> Digest.Sha256
+                        "sha512" -> Digest.Sha512
+                        else -> Digest.Sha1
+                    }
+                } else {
+                    Digest.Sha1
+                },
             )
 
         fun fromUrl(uri: Uri): TotpItem? {
@@ -63,11 +92,15 @@ data class TotpItem(
             val period = uri.getQueryParameter("period") ?: "30"
             val periodSeconds = period.toIntOrNull() ?: return null
 
+            val algorithm = uri.getQueryParameter("algorithm")?.uppercase() ?: "SHA1"
+            val digest = Digest.fromString(algorithm) ?: return null
+
             return TotpItem(
                 name = name,
                 extraInfo = extraInfo,
                 secret = secret,
                 periodSeconds = periodSeconds,
+                digest = digest,
             )
         }
     }

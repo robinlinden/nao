@@ -28,6 +28,9 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -58,6 +61,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.atlassian.onetime.core.HMACDigest
 import com.atlassian.onetime.core.TOTPGenerator
 import com.atlassian.onetime.model.TOTPSecret
 import kotlinx.coroutines.Dispatchers
@@ -71,6 +75,13 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import java.util.Date
+
+private fun asHMACDigest(digest: Digest) =
+    when (digest) {
+        Digest.Sha1 -> HMACDigest.SHA1
+        Digest.Sha256 -> HMACDigest.SHA256
+        Digest.Sha512 -> HMACDigest.SHA512
+    }
 
 private fun isOtpAuthIntent(intent: Intent): Boolean = intent.action == Intent.ACTION_VIEW && intent.data?.scheme == "otpauth"
 
@@ -255,6 +266,7 @@ fun AddTotpSheet(
         extraInfo = "",
         secret = "",
         periodSeconds = 30,
+        digest = Digest.Sha1,
     )
 
     val sheetState = rememberModalBottomSheetState()
@@ -262,6 +274,7 @@ fun AddTotpSheet(
     var extraInfo by remember { mutableStateOf(initial.extraInfo) }
     var secret by remember { mutableStateOf(initial.secret) }
     var period by remember { mutableStateOf(initial.periodSeconds.toString()) }
+    var digest by remember { mutableStateOf(initial.digest) }
 
     var nameError by remember { mutableStateOf<String?>(null) }
     var secretError by remember { mutableStateOf<String?>(null) }
@@ -302,7 +315,7 @@ fun AddTotpSheet(
                 value = secret,
                 onValueChange = {
                     secret = it
-                    secretError = validateSecret(it)
+                    secretError = validateSecret(it, digest)
                 },
                 label = { Text("Secret (Base32)") },
                 isError = secretError != null,
@@ -321,10 +334,45 @@ fun AddTotpSheet(
                 modifier = Modifier.fillMaxWidth(),
             )
 
+            var expanded by remember { mutableStateOf(false) }
+            ExposedDropdownMenuBox(
+                expanded = expanded,
+                onExpandedChange = { expanded = !expanded },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                TextField(
+                    value = digest.name.uppercase(),
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Algorithm") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                    colors = ExposedDropdownMenuDefaults.textFieldColors(),
+                    modifier = Modifier
+                        .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true)
+                        .fillMaxWidth(),
+                )
+                ExposedDropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false },
+                ) {
+                    Digest.entries.forEach { selectionOption ->
+                        DropdownMenuItem(
+                            text = { Text(selectionOption.name.uppercase()) },
+                            onClick = {
+                                digest = selectionOption
+                                expanded = false
+                                secretError = validateSecret(secret, digest)
+                            },
+                            contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding,
+                        )
+                    }
+                }
+            }
+
             val hasRequiredValues = name.isNotEmpty() && secret.isNotEmpty() && period.isNotEmpty()
             Button(
                 onClick = {
-                    onSave(TotpItem(name, extraInfo, secret, period.toInt()))
+                    onSave(TotpItem(name, extraInfo, secret, period.toInt(), digest))
                 },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = hasRequiredValues && nameError == null && secretError == null && periodError == null,
@@ -392,7 +440,10 @@ private fun validateName(name: String): String? = if (name.isEmpty()) "Name may 
 
 private fun isBase32Character(char: Char): Boolean = char in 'A'..'Z' || char in 'a'..'z' || char in '2'..'7' || char == '='
 
-private fun validateSecret(secret: String): String? {
+private fun validateSecret(
+    secret: String,
+    digest: Digest,
+): String? {
     if (secret.any { !isBase32Character(it) }) return "Secret must be base32 encoded"
     if (secret.substringAfter('=', "").any { it != '=' }) return "Secret must be base32 encoded"
 
@@ -404,7 +455,7 @@ private fun validateSecret(secret: String): String? {
 
     return try {
         val s = TOTPSecret.fromBase32EncodedString(secret)
-        val generator = TOTPGenerator()
+        val generator = TOTPGenerator(digest = asHMACDigest(digest))
         generator.generateCurrent(s)
         null
     } catch (_: Exception) {
@@ -426,11 +477,17 @@ fun TotpRow(
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val generator = remember { TOTPGenerator(timeStepSeconds = totp.periodSeconds) }
+    val generator =
+        remember {
+            TOTPGenerator(
+                timeStepSeconds = totp.periodSeconds,
+                digest = asHMACDigest(totp.digest),
+            )
+        }
     var code by remember { mutableStateOf("000000") }
     var progress by remember { mutableFloatStateOf(0f) }
 
-    LaunchedEffect(totp.secret, totp.periodSeconds) {
+    LaunchedEffect(totp.secret, totp.periodSeconds, totp.digest) {
         val totpSecret = TOTPSecret.fromBase32EncodedString(totp.secret)
         while (true) {
             code = generator.generateCurrent(totpSecret).value
@@ -530,18 +587,21 @@ private fun GreetingPreview() {
             extraInfo = "user@example.com",
             secret = "AAAAAAAAAA",
             periodSeconds = 3,
+            Digest.Sha1,
         ),
         TotpItem(
             name = "GitHub",
             extraInfo = "ecorp-person",
             secret = "AAAAAAAABB",
             periodSeconds = 5,
+            Digest.Sha256,
         ),
         TotpItem(
             name = "Discord",
             extraInfo = "nao_fan_92",
             secret = "AAAAAAAACC",
             periodSeconds = 1,
+            Digest.Sha512,
         ),
     )
 

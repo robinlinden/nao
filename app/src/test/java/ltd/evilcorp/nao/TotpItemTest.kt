@@ -20,6 +20,37 @@ class TotpItemTest {
         assertEquals("user@example.com", item?.extraInfo)
         assertEquals("JBSWY3DPEHPK3PXP", item?.secret)
         assertEquals(30, item?.periodSeconds)
+        assertEquals(Digest.Sha1, item?.digest)
+    }
+
+    @Test
+    fun fromUrl_validUrlWithSha256_returnsTotpItem() {
+        val url =
+            "otpauth://totp/Example:user@example.com?secret=JBSWY3DPEHPK3PXP&issuer=Example&period=30&algorithm=SHA256"
+        val uri = Uri.parse(url)
+        val item = TotpItem.fromUrl(uri)
+
+        assertEquals(Digest.Sha256, item?.digest)
+    }
+
+    @Test
+    fun fromUrl_validUrlWithSha512_returnsTotpItem() {
+        val url =
+            "otpauth://totp/Example:user@example.com?secret=JBSWY3DPEHPK3PXP&issuer=Example&period=30&algorithm=sha512"
+        val uri = Uri.parse(url)
+        val item = TotpItem.fromUrl(uri)
+
+        assertEquals(Digest.Sha512, item?.digest)
+    }
+
+    @Test
+    fun fromUrl_validUrlWithUnknownAlgorithm_returnsNull() {
+        val url =
+            "otpauth://totp/Example:user@example.com?secret=JBSWY3DPEHPK3PXP&issuer=Example&period=30&algorithm=MD5"
+        val uri = Uri.parse(url)
+        val item = TotpItem.fromUrl(uri)
+
+        assertEquals(null, item)
     }
 
     @Test
