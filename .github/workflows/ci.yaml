@@ -14,7 +14,7 @@ jobs:
           distribution: adopt
           java-version: 17
       - run: curl -sSLO https://github.com/pinterest/ktlint/releases/download/1.8.0/ktlint && chmod a+x ktlint
-      - run: curl -sSLo compose-rules https://github.com/mrmans0n/compose-rules/releases/download/v0.5.7/ktlint-compose-0.5.7-all.jar
+      - run: curl -sSLo compose-rules https://github.com/mrmans0n/compose-rules/releases/download/v0.5.8/ktlint-compose-0.5.8-all.jar
       - run: ./ktlint --ruleset=compose-rules
 
   gradle:
