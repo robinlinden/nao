@@ -254,6 +254,9 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+private const val DEFAULT_PERIOD = 30
+private val DEFAULT_DIGEST = Digest.Sha1
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddTotpSheet(
@@ -265,8 +268,8 @@ fun AddTotpSheet(
         name = "",
         extraInfo = "",
         secret = "",
-        periodSeconds = 30,
-        digest = Digest.Sha1,
+        periodSeconds = DEFAULT_PERIOD,
+        digest = DEFAULT_DIGEST,
     )
 
     val sheetState = rememberModalBottomSheetState()
@@ -279,6 +282,10 @@ fun AddTotpSheet(
     var nameError by remember { mutableStateOf<String?>(null) }
     var secretError by remember { mutableStateOf<String?>(null) }
     var periodError by remember { mutableStateOf<String?>(null) }
+
+    var showAdvanced by remember {
+        mutableStateOf(initial.periodSeconds != DEFAULT_PERIOD || initial.digest != DEFAULT_DIGEST)
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -322,49 +329,58 @@ fun AddTotpSheet(
                 supportingText = { secretError?.let { Text(it) } },
                 modifier = Modifier.fillMaxWidth(),
             )
-            TextField(
-                value = period,
-                onValueChange = {
-                    period = it
-                    periodError = validatePeriod(it)
-                },
-                label = { Text("Period (seconds)") },
-                isError = periodError != null,
-                supportingText = { periodError?.let { Text(it) } },
-                modifier = Modifier.fillMaxWidth(),
-            )
 
-            var expanded by remember { mutableStateOf(false) }
-            ExposedDropdownMenuBox(
-                expanded = expanded,
-                onExpandedChange = { expanded = !expanded },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
+            if (!showAdvanced) {
+                TextButton(onClick = { showAdvanced = true }) {
+                    Text("Show advanced")
+                }
+            }
+
+            if (showAdvanced) {
                 TextField(
-                    value = digest.name.uppercase(),
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("Algorithm") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                    colors = ExposedDropdownMenuDefaults.textFieldColors(),
-                    modifier = Modifier
-                        .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true)
-                        .fillMaxWidth(),
+                    value = period,
+                    onValueChange = {
+                        period = it
+                        periodError = validatePeriod(it)
+                    },
+                    label = { Text("Period (seconds)") },
+                    isError = periodError != null,
+                    supportingText = { periodError?.let { Text(it) } },
+                    modifier = Modifier.fillMaxWidth(),
                 )
-                ExposedDropdownMenu(
+
+                var expanded by remember { mutableStateOf(false) }
+                ExposedDropdownMenuBox(
                     expanded = expanded,
-                    onDismissRequest = { expanded = false },
+                    onExpandedChange = { expanded = !expanded },
+                    modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Digest.entries.forEach { selectionOption ->
-                        DropdownMenuItem(
-                            text = { Text(selectionOption.name.uppercase()) },
-                            onClick = {
-                                digest = selectionOption
-                                expanded = false
-                                secretError = validateSecret(secret, digest)
-                            },
-                            contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding,
-                        )
+                    TextField(
+                        value = digest.name.uppercase(),
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Algorithm") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                        colors = ExposedDropdownMenuDefaults.textFieldColors(),
+                        modifier = Modifier
+                            .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true)
+                            .fillMaxWidth(),
+                    )
+                    ExposedDropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false },
+                    ) {
+                        Digest.entries.forEach { selectionOption ->
+                            DropdownMenuItem(
+                                text = { Text(selectionOption.name.uppercase()) },
+                                onClick = {
+                                    digest = selectionOption
+                                    expanded = false
+                                    secretError = validateSecret(secret, digest)
+                                },
+                                contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding,
+                            )
+                        }
                     }
                 }
             }

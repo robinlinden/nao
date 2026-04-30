@@ -80,6 +80,9 @@ class IntegrationTest {
             composeTestRule.onNodeWithText("Name").performTextInput("something something")
             composeTestRule.onNodeWithText("Extra Info").performTextInput("robin@example.com")
             composeTestRule.onNodeWithText("Secret (Base32)").performTextInput("ABCDEFGHIJKLMNOP")
+
+            // Period is almost always 30, so it's hidden behind the 'advanced' option.
+            composeTestRule.onNodeWithText("Show advanced").performClick()
             composeTestRule.onNodeWithText("Period (seconds)").performTextReplacement("60")
 
             // Click save.
