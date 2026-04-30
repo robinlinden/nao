@@ -272,7 +272,7 @@ fun AddTotpSheet(
         digest = DEFAULT_DIGEST,
     )
 
-    val sheetState = rememberModalBottomSheetState()
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = initialValues != null)
     var name by remember { mutableStateOf(initial.name) }
     var extraInfo by remember { mutableStateOf(initial.extraInfo) }
     var secret by remember { mutableStateOf(initial.secret) }
