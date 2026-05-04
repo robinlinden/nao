@@ -5,16 +5,19 @@ import android.app.Instrumentation
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onParent
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeUp
 import androidx.test.core.app.ActivityScenario
 import androidx.test.espresso.intent.Intents
 import androidx.test.espresso.intent.Intents.intending
@@ -91,6 +94,32 @@ class IntegrationTest {
             // Check if it's added to the list.
             composeTestRule.onNodeWithText("something something").assertIsDisplayed()
             composeTestRule.onNodeWithText("robin@example.com").assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun testDisallowDuplicateEntry() {
+        ActivityScenario.launch(MainActivity::class.java).use {
+            // Add an entry.
+            composeTestRule.onNodeWithContentDescription("Add").performClick()
+            composeTestRule.onNodeWithText("Name").performTextInput("Duplicate")
+            composeTestRule.onNodeWithText("Secret (Base32)").performTextInput("ABCDEFGHIJKLMNOP")
+            composeTestRule.onNodeWithText("Save").performClick()
+
+            // Try to add the same entry again.
+            composeTestRule.onNodeWithContentDescription("Add").performClick()
+            composeTestRule.onNodeWithText("Name").performTextInput("Duplicate")
+            composeTestRule.onNodeWithText("Secret (Base32)").performTextInput("ABCDEFGHIJKLMNOP")
+
+            // Swipe the BottomSheet up to expand it, or the Save-button might not be in view.
+            composeTestRule.onNodeWithText("Name").onParent().performTouchInput {
+                swipeUp()
+            }
+
+            // The Save-button should now be disabled and say "Already added".
+            composeTestRule.onNodeWithText("Save").assertDoesNotExist()
+            composeTestRule.onNodeWithText("Already added").assertIsDisplayed()
+            composeTestRule.onNodeWithText("Already added").assertIsNotEnabled()
         }
     }
 

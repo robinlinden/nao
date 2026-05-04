@@ -230,6 +230,7 @@ class MainActivity : ComponentActivity() {
                                 showAddSheet = false
                             },
                             initialValues = totpArg,
+                            existingItems = items,
                         )
                     }
 
@@ -263,6 +264,7 @@ fun AddTotpSheet(
     onDismiss: () -> Unit,
     onSave: (TotpItem) -> Unit,
     initialValues: TotpItem?,
+    existingItems: List<TotpItem>,
 ) {
     val initial = initialValues ?: TotpItem(
         name = "",
@@ -386,14 +388,23 @@ fun AddTotpSheet(
             }
 
             val hasRequiredValues = name.isNotEmpty() && secret.isNotEmpty() && period.isNotEmpty()
+            // TODO(robinlinden): Less strict comparison. Maybe something like:
+            //   * <entry> already added w/ same secret
+            //   * <entry> already added w/ different secret
+            //   * secret already added as <entry>
+            val isDuplicate = remember(name, extraInfo, secret, period, digest) {
+                val p = period.toIntOrNull() ?: return@remember false
+                val candidate = TotpItem(name, extraInfo, secret, p, digest)
+                existingItems.any { it == candidate }
+            }
             Button(
                 onClick = {
                     onSave(TotpItem(name, extraInfo, secret, period.toInt(), digest))
                 },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = hasRequiredValues && nameError == null && secretError == null && periodError == null,
+                enabled = hasRequiredValues && nameError == null && secretError == null && periodError == null && !isDuplicate,
             ) {
-                Text("Save")
+                Text(if (isDuplicate) "Already added" else "Save")
             }
 
             Spacer(modifier = Modifier.height(32.dp))
