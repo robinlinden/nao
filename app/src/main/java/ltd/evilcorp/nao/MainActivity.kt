@@ -177,6 +177,36 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                val importLauncher = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.OpenDocument(),
+                ) { uri ->
+                    if (uri == null) {
+                        return@rememberLauncherForActivityResult
+                    }
+
+                    scope.launch(Dispatchers.IO) {
+                        try {
+                            val jsonString = contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                                ?: throw Exception("Failed to open input stream")
+                            val array = JSONArray(jsonString)
+                            val newItems = mutableListOf<TotpItem>()
+                            for (i in 0 until array.length()) {
+                                newItems.add(TotpItem.fromJson(array.getJSONObject(i)))
+                            }
+
+                            withContext(Dispatchers.Main) {
+                                val oldSize = items.size
+                                items = (items + newItems).distinct()
+                                val addedCount = items.size - oldSize
+                                snackbarHostState.showSnackbar("Imported $addedCount new items")
+                            }
+                        } catch (e: Exception) {
+                            snackbarHostState.showSnackbar("Import failed")
+                            Log.e("MainActivity", "Import failed", e)
+                        }
+                    }
+                }
+
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
                     snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -199,6 +229,13 @@ class MainActivity : ComponentActivity() {
                                         onClick = {
                                             showMenu = false
                                             exportLauncher.launch("nao.json")
+                                        },
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Import JSON") },
+                                        onClick = {
+                                            showMenu = false
+                                            importLauncher.launch(arrayOf("application/json"))
                                         },
                                     )
                                 }

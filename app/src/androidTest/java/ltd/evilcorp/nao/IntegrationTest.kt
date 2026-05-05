@@ -173,6 +173,140 @@ class IntegrationTest {
     }
 
     @Test
+    fun testImport() {
+        Intents.init()
+        try {
+            val label = "ImportTestItem"
+            val context = InstrumentationRegistry.getInstrumentation().targetContext
+            val importFile = File(context.cacheDir, "to_import.json")
+            val json =
+                """
+                [
+                  {
+                    "name": "$label",
+                    "extraInfo": "imported@example.com",
+                    "secret": "AAAAAAAAAAAAAAAA",
+                    "periodSeconds": 30,
+                    "digest": "sha1"
+                  }
+                ]
+                """.trimIndent()
+            importFile.writeText(json)
+            val importUri = Uri.fromFile(importFile)
+
+            val resultData = Intent().apply {
+                data = importUri
+            }
+            val result = Instrumentation.ActivityResult(Activity.RESULT_OK, resultData)
+            intending(hasAction(Intent.ACTION_OPEN_DOCUMENT)).respondWith(result)
+
+            ActivityScenario.launch(MainActivity::class.java).use {
+                // Open menu.
+                composeTestRule.onNodeWithContentDescription("More").performClick()
+                // Click Import.
+                composeTestRule.onNodeWithText("Import JSON").performClick()
+
+                // Wait for success snackbar.
+                composeTestRule.waitUntil(5000) {
+                    composeTestRule
+                        .onAllNodesWithText("Imported 1 new items")
+                        .fetchSemanticsNodes()
+                        .isNotEmpty()
+                }
+
+                // Verify the item is in the list.
+                composeTestRule.onNodeWithText(label).assertIsDisplayed()
+                composeTestRule.onNodeWithText("imported@example.com").assertIsDisplayed()
+            }
+        } finally {
+            Intents.release()
+        }
+    }
+
+    @Test
+    fun testImportDuplicates() {
+        Intents.init()
+        try {
+            val label = "DuplicateItem"
+            val context = InstrumentationRegistry.getInstrumentation().targetContext
+            val importFile = File(context.cacheDir, "duplicates.json")
+            val json =
+                """
+                [
+                  {
+                    "name": "$label",
+                    "extraInfo": "user@example.com",
+                    "secret": "AAAAAAAAAAAAAAAA",
+                    "periodSeconds": 30,
+                    "digest": "sha1"
+                  }
+                ]
+                """.trimIndent()
+            importFile.writeText(json)
+            val importUri = Uri.fromFile(importFile)
+
+            val resultData = Intent().apply { data = importUri }
+            val result = Instrumentation.ActivityResult(Activity.RESULT_OK, resultData)
+            intending(hasAction(Intent.ACTION_OPEN_DOCUMENT)).respondWith(result)
+
+            ActivityScenario.launch(MainActivity::class.java).use {
+                // Add the item manually first.
+                composeTestRule.onNodeWithContentDescription("Add").performClick()
+                composeTestRule.onNodeWithText("Name").performTextInput(label)
+                composeTestRule.onNodeWithText("Extra Info").performTextInput("user@example.com")
+                composeTestRule.onNodeWithText("Secret (Base32)").performTextInput("AAAAAAAAAAAAAAAA")
+                composeTestRule.onNodeWithText("Save").performClick()
+
+                // Now import the same item.
+                composeTestRule.onNodeWithContentDescription("More").performClick()
+                composeTestRule.onNodeWithText("Import JSON").performClick()
+
+                // Verify snackbar says 0 new items.
+                composeTestRule.waitUntil(5000) {
+                    composeTestRule
+                        .onAllNodesWithText("Imported 0 new items")
+                        .fetchSemanticsNodes()
+                        .isNotEmpty()
+                }
+            }
+        } finally {
+            Intents.release()
+        }
+    }
+
+    @Test
+    fun testImportInvalidJson() {
+        Intents.init()
+        try {
+            val context = InstrumentationRegistry.getInstrumentation().targetContext
+            val importFile = File(context.cacheDir, "invalid.json")
+            importFile.writeText("This is not JSON")
+            val importUri = Uri.fromFile(importFile)
+
+            val resultData = Intent().apply { data = importUri }
+            val result = Instrumentation.ActivityResult(Activity.RESULT_OK, resultData)
+            intending(hasAction(Intent.ACTION_OPEN_DOCUMENT)).respondWith(result)
+
+            ActivityScenario.launch(MainActivity::class.java).use {
+                // Open menu.
+                composeTestRule.onNodeWithContentDescription("More").performClick()
+                // Click Import.
+                composeTestRule.onNodeWithText("Import JSON").performClick()
+
+                // Wait for failure snackbar.
+                composeTestRule.waitUntil(5000) {
+                    composeTestRule
+                        .onAllNodesWithText("Import failed")
+                        .fetchSemanticsNodes()
+                        .isNotEmpty()
+                }
+            }
+        } finally {
+            Intents.release()
+        }
+    }
+
+    @Test
     fun testStatePersistence() {
         val label = "PersistenceTest"
         val user = "bee@bbbthats3bees.be"
