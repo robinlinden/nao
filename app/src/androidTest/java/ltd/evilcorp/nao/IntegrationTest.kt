@@ -6,6 +6,8 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithText
@@ -356,6 +358,94 @@ class IntegrationTest {
 
             // Verify the entry is gone.
             composeTestRule.onNodeWithText(label).assertDoesNotExist()
+        }
+    }
+
+    @Test
+    fun testEditEntry() {
+        ActivityScenario.launch(MainActivity::class.java).use {
+            // Add an entry.
+            composeTestRule.onNodeWithContentDescription("Add").performClick()
+            composeTestRule.onNodeWithText("Name").performTextInput("Original Name")
+            composeTestRule.onNodeWithText("Extra Info").performTextInput("original@info.com")
+            composeTestRule.onNodeWithText("Secret (Base32)").performTextInput("AAAAAAAAAAAAAAAA")
+            composeTestRule.onNodeWithText("Save").performClick()
+
+            // Long-press to edit.
+            composeTestRule.onNodeWithText("Original Name").performTouchInput { longClick() }
+            composeTestRule.onNodeWithText("Edit").performClick()
+
+            // Check if sheet shows "Edit TOTP".
+            composeTestRule.onNodeWithText("Edit TOTP").assertIsDisplayed()
+
+            // Modify values. Disambiguate from the list by targeting the editable field.
+            composeTestRule.onNode(hasText("Original Name") and hasSetTextAction()).performTextReplacement("Updated Name")
+            composeTestRule.onNode(hasText("original@info.com") and hasSetTextAction()).performTextReplacement("updated@info.com")
+
+            // Save changes.
+            composeTestRule.onNodeWithText("Save").performClick()
+
+            // Verify updates.
+            composeTestRule.onNodeWithText("Updated Name").assertIsDisplayed()
+            composeTestRule.onNodeWithText("updated@info.com").assertIsDisplayed()
+            composeTestRule.onNodeWithText("Original Name").assertDoesNotExist()
+        }
+    }
+
+    @Test
+    fun testEditDuplicateEntry() {
+        ActivityScenario.launch(MainActivity::class.java).use {
+            // Add first entry.
+            composeTestRule.onNodeWithContentDescription("Add").performClick()
+            composeTestRule.onNodeWithText("Name").performTextInput("Entry 1")
+            composeTestRule.onNodeWithText("Secret (Base32)").performTextInput("AAAAAAAAAAAAAAAA")
+            composeTestRule.onNodeWithText("Save").performClick()
+
+            // Add second entry.
+            composeTestRule.onNodeWithContentDescription("Add").performClick()
+            composeTestRule.onNodeWithText("Name").performTextInput("Entry 2")
+            composeTestRule.onNodeWithText("Secret (Base32)").performTextInput("BBBBBBBBBBBBBBBB")
+            composeTestRule.onNodeWithText("Save").performClick()
+
+            // Edit Entry 2 to match Entry 1.
+            composeTestRule.onNodeWithText("Entry 2").performTouchInput { longClick() }
+            composeTestRule.onNodeWithText("Edit").performClick()
+
+            composeTestRule.onNode(hasText("Entry 2") and hasSetTextAction()).performTextReplacement("Entry 1")
+            composeTestRule.onNode(hasText("BBBBBBBBBBBBBBBB") and hasSetTextAction()).performTextReplacement("AAAAAAAAAAAAAAAA")
+
+            // Swipe up to see the button if needed.
+            composeTestRule.onNodeWithText("Name").onParent().performTouchInput {
+                swipeUp()
+            }
+
+            // Verify duplicate error.
+            composeTestRule.onNodeWithText("Already added").assertIsDisplayed()
+            composeTestRule.onNodeWithText("Already added").assertIsNotEnabled()
+        }
+    }
+
+    @Test
+    fun testEditNoChangesDisallowed() {
+        ActivityScenario.launch(MainActivity::class.java).use {
+            // Add an entry.
+            composeTestRule.onNodeWithContentDescription("Add").performClick()
+            composeTestRule.onNodeWithText("Name").performTextInput("No Change")
+            composeTestRule.onNodeWithText("Secret (Base32)").performTextInput("AAAAAAAAAAAAAAAA")
+            composeTestRule.onNodeWithText("Save").performClick()
+
+            // Edit it but change nothing.
+            composeTestRule.onNodeWithText("No Change").performTouchInput { longClick() }
+            composeTestRule.onNodeWithText("Edit").performClick()
+
+            // Swipe up to see the button.
+            composeTestRule.onNodeWithText("Name").onParent().performTouchInput {
+                swipeUp()
+            }
+
+            // Verify that we can't save the entry with no changes made.
+            composeTestRule.onNodeWithText("Already added").assertIsDisplayed()
+            composeTestRule.onNodeWithText("Already added").assertIsNotEnabled()
         }
     }
 }

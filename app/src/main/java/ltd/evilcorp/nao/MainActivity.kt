@@ -10,6 +10,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -150,6 +151,7 @@ class MainActivity : ComponentActivity() {
                 var items by remember { mutableStateOf(initialItems) }
                 var showAddSheet by remember { mutableStateOf(totpArg != null) }
                 var itemToActions by remember { mutableStateOf<TotpItem?>(null) }
+                var itemToEdit by remember { mutableStateOf<TotpItem?>(null) }
                 var showMenu by remember { mutableStateOf(false) }
 
                 val snackbarHostState = remember { SnackbarHostState() }
@@ -259,15 +261,24 @@ class MainActivity : ComponentActivity() {
                             .fillMaxSize(),
                     )
 
-                    if (showAddSheet) {
+                    if (showAddSheet || itemToEdit != null) {
                         AddTotpSheet(
-                            onDismiss = { showAddSheet = false },
-                            onSave = { newItem ->
-                                items = items + newItem
+                            onDismiss = {
                                 showAddSheet = false
+                                itemToEdit = null
                             },
-                            initialValues = totpArg,
+                            onSave = { newItem ->
+                                items = if (itemToEdit != null) {
+                                    items.map { if (it == itemToEdit) newItem else it }
+                                } else {
+                                    items + newItem
+                                }
+                                showAddSheet = false
+                                itemToEdit = null
+                            },
+                            initialValues = itemToEdit ?: totpArg,
                             existingItems = items,
+                            isEdit = itemToEdit != null,
                         )
                     }
 
@@ -275,6 +286,10 @@ class MainActivity : ComponentActivity() {
                         TotpActionsSheet(
                             totp = itemToActions!!,
                             onDismiss = { itemToActions = null },
+                            onEdit = {
+                                itemToEdit = itemToActions
+                                itemToActions = null
+                            },
                             onDelete = {
                                 items = items.filter { it != itemToActions }
                                 itemToActions = null
@@ -302,6 +317,7 @@ fun AddTotpSheet(
     onSave: (TotpItem) -> Unit,
     initialValues: TotpItem?,
     existingItems: List<TotpItem>,
+    isEdit: Boolean = false,
 ) {
     val initial = initialValues ?: TotpItem(
         name = "",
@@ -337,7 +353,7 @@ fun AddTotpSheet(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text("Add New TOTP", style = MaterialTheme.typography.headlineSmall)
+            Text(if (isEdit) "Edit TOTP" else "Add New TOTP", style = MaterialTheme.typography.headlineSmall)
             TextField(
                 value = name,
                 onValueChange = {
@@ -454,12 +470,28 @@ fun AddTotpSheet(
 fun TotpActionsSheet(
     totp: TotpItem,
     onDismiss: () -> Unit,
+    onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
     var showConfirmation by remember { mutableStateOf(false) }
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(modifier = Modifier.padding(bottom = 32.dp)) {
+            ListItem(
+                headlineContent = { Text("Edit") },
+                leadingContent = {
+                    Icon(
+                        painter = painterResource(android.R.drawable.ic_menu_edit),
+                        contentDescription = null,
+                    )
+                },
+                modifier = Modifier.clickable {
+                    onEdit()
+                },
+                colors = ListItemDefaults.colors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                ),
+            )
             ListItem(
                 headlineContent = { Text("Delete") },
                 leadingContent = {
