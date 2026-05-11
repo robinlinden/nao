@@ -2,10 +2,12 @@ package ltd.evilcorp.nao
 
 import android.content.Context
 import android.content.Intent
+import android.graphics.Color.TRANSPARENT
 import android.os.Bundle
 import android.util.AtomicFile
 import android.util.Log
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -17,6 +19,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -58,6 +62,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -145,7 +150,9 @@ class MainActivity : ComponentActivity() {
             Log.i("MainActivity", "Loaded ${it.size} items")
         }
 
-        enableEdgeToEdge()
+        enableEdgeToEdge(
+            navigationBarStyle = SystemBarStyle.auto(TRANSPARENT, TRANSPARENT),
+        )
         setContent {
             NaoTheme {
                 var items by remember { mutableStateOf(initialItems) }
@@ -256,9 +263,8 @@ class MainActivity : ComponentActivity() {
                     TotpList(
                         items = items,
                         onLongClick = { itemToActions = it },
-                        modifier = Modifier
-                            .padding(innerPadding)
-                            .fillMaxSize(),
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = innerPadding,
                     )
 
                     if (showAddSheet || itemToEdit != null) {
@@ -652,16 +658,17 @@ fun TotpList(
     items: List<TotpItem>,
     onLongClick: (TotpItem) -> Unit,
     modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(0.dp),
 ) {
+    val layoutDirection = LocalLayoutDirection.current
     LazyColumn(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(8.dp),
         contentPadding = PaddingValues(
-            start = 16.dp,
-            top = 16.dp,
-            end = 16.dp,
-            // This is silly, but we have to make sure the FAB doesn't overlap the last item in the list.
-            bottom = 80.dp,
+            start = 16.dp + contentPadding.calculateStartPadding(layoutDirection),
+            top = 16.dp + contentPadding.calculateTopPadding(),
+            end = 16.dp + contentPadding.calculateEndPadding(layoutDirection),
+            bottom = 80.dp + contentPadding.calculateBottomPadding(),
         ),
     ) {
         items(items) { item ->
