@@ -588,7 +588,7 @@ fun TotpRow(
     modifier: Modifier = Modifier,
 ) {
     val generator =
-        remember {
+        remember(totp.periodSeconds, totp.digest) {
             TOTPGenerator(
                 timeStepSeconds = totp.periodSeconds,
                 digest = asHMACDigest(totp.digest),
@@ -597,7 +597,7 @@ fun TotpRow(
     var code by remember { mutableStateOf("000000") }
     var progress by remember { mutableFloatStateOf(0f) }
 
-    LaunchedEffect(totp.secret, totp.periodSeconds, totp.digest) {
+    LaunchedEffect(totp.secret, generator) {
         val totpSecret = TOTPSecret.fromBase32EncodedString(totp.secret)
         while (true) {
             code = generator.generateCurrent(totpSecret).value
