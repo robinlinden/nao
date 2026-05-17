@@ -121,4 +121,13 @@ class TotpItemTest {
 
         assertNull(item)
     }
+
+    @Test
+    fun fromUrl_validUrlWithDigits_returnsTotpItem() {
+        val url = "otpauth://totp/Example:user@example.com?secret=JBSWY3DPEHPK3PXP&digits=8"
+        val uri = Uri.parse(url)
+        val item = TotpItem.fromUrl(uri)
+
+        assertEquals(8, item?.otpLength)
+    }
 }

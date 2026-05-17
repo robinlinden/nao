@@ -26,6 +26,7 @@ data class TotpItem(
     val secret: String,
     val periodSeconds: Int,
     val digest: Digest,
+    val otpLength: Int = 6,
 ) {
     fun toJson(): JSONObject =
         JSONObject().apply {
@@ -34,6 +35,7 @@ data class TotpItem(
             put("secret", secret)
             put("periodSeconds", periodSeconds)
             put("digest", digest.name.lowercase())
+            put("otpLength", otpLength)
         }
 
     companion object {
@@ -53,6 +55,7 @@ data class TotpItem(
                 } else {
                     Digest.Sha1
                 },
+                otpLength = json.optInt("otpLength", 6),
             )
 
         fun fromUrl(uri: Uri): TotpItem? {
@@ -95,12 +98,16 @@ data class TotpItem(
             val algorithm = uri.getQueryParameter("algorithm")?.uppercase() ?: "SHA1"
             val digest = Digest.fromString(algorithm) ?: return null
 
+            val digits = uri.getQueryParameter("digits") ?: "6"
+            val otpLength = digits.toIntOrNull() ?: return null
+
             return TotpItem(
                 name = name,
                 extraInfo = extraInfo,
                 secret = secret,
                 periodSeconds = periodSeconds,
                 digest = digest,
+                otpLength = otpLength,
             )
         }
     }

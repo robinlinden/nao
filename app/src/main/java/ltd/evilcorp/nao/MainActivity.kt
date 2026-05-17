@@ -59,6 +59,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -71,6 +72,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.atlassian.onetime.core.HMACDigest
+import com.atlassian.onetime.core.OTPLength
 import com.atlassian.onetime.core.TOTPGenerator
 import com.atlassian.onetime.model.TOTPSecret
 import kotlinx.coroutines.Dispatchers
@@ -90,6 +92,14 @@ private fun asHMACDigest(digest: Digest) =
         Digest.Sha1 -> HMACDigest.SHA1
         Digest.Sha256 -> HMACDigest.SHA256
         Digest.Sha512 -> HMACDigest.SHA512
+    }
+
+private fun asOTPLength(length: Int) =
+    when (length) {
+        6 -> OTPLength.SIX
+        7 -> OTPLength.SEVEN
+        8 -> OTPLength.EIGHT
+        else -> OTPLength.SIX
     }
 
 private fun isOtpAuthIntent(intent: Intent): Boolean = intent.action == Intent.ACTION_VIEW && intent.data?.scheme == "otpauth"
@@ -322,6 +332,7 @@ class MainActivity : ComponentActivity() {
 
 private const val DEFAULT_PERIOD = 30
 private val DEFAULT_DIGEST = Digest.Sha1
+private const val DEFAULT_OTP_LENGTH = 6
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -338,6 +349,7 @@ fun AddTotpSheet(
         secret = "",
         periodSeconds = DEFAULT_PERIOD,
         digest = DEFAULT_DIGEST,
+        otpLength = DEFAULT_OTP_LENGTH,
     )
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = initialValues != null)
@@ -346,13 +358,16 @@ fun AddTotpSheet(
     var secret by remember { mutableStateOf(initial.secret) }
     var period by remember { mutableStateOf(initial.periodSeconds.toString()) }
     var digest by remember { mutableStateOf(initial.digest) }
+    var otpLength by remember { mutableIntStateOf(initial.otpLength) }
 
     var nameError by remember { mutableStateOf<String?>(null) }
     var secretError by remember { mutableStateOf<String?>(null) }
     var periodError by remember { mutableStateOf<String?>(null) }
 
     var showAdvanced by remember {
-        mutableStateOf(initial.periodSeconds != DEFAULT_PERIOD || initial.digest != DEFAULT_DIGEST)
+        mutableStateOf(
+            initial.periodSeconds != DEFAULT_PERIOD || initial.digest != DEFAULT_DIGEST || initial.otpLength != DEFAULT_OTP_LENGTH,
+        )
     }
 
     ModalBottomSheet(
@@ -452,6 +467,40 @@ fun AddTotpSheet(
                         }
                     }
                 }
+
+                var lengthExpanded by remember { mutableStateOf(false) }
+                ExposedDropdownMenuBox(
+                    expanded = lengthExpanded,
+                    onExpandedChange = { lengthExpanded = !lengthExpanded },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    TextField(
+                        value = otpLength.toString(),
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("OTP Length") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = lengthExpanded) },
+                        colors = ExposedDropdownMenuDefaults.textFieldColors(),
+                        modifier = Modifier
+                            .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true)
+                            .fillMaxWidth(),
+                    )
+                    ExposedDropdownMenu(
+                        expanded = lengthExpanded,
+                        onDismissRequest = { lengthExpanded = false },
+                    ) {
+                        listOf(6, 7, 8).forEach { selectionOption ->
+                            DropdownMenuItem(
+                                text = { Text(selectionOption.toString()) },
+                                onClick = {
+                                    otpLength = selectionOption
+                                    lengthExpanded = false
+                                },
+                                contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding,
+                            )
+                        }
+                    }
+                }
             }
 
             val hasRequiredValues = name.isNotEmpty() && secret.isNotEmpty() && period.isNotEmpty()
@@ -459,14 +508,14 @@ fun AddTotpSheet(
             //   * <entry> already added w/ same secret
             //   * <entry> already added w/ different secret
             //   * secret already added as <entry>
-            val isDuplicate = remember(name, extraInfo, secret, period, digest) {
+            val isDuplicate = remember(name, extraInfo, secret, period, digest, otpLength) {
                 val p = period.toIntOrNull() ?: return@remember false
-                val candidate = TotpItem(name, extraInfo, secret, p, digest)
+                val candidate = TotpItem(name, extraInfo, secret, p, digest, otpLength)
                 existingItems.any { it == candidate }
             }
             Button(
                 onClick = {
-                    onSave(TotpItem(name, extraInfo, secret, period.toInt(), digest))
+                    onSave(TotpItem(name, extraInfo, secret, period.toInt(), digest, otpLength))
                 },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = hasRequiredValues && nameError == null && secretError == null && periodError == null && !isDuplicate,
@@ -588,10 +637,11 @@ fun TotpRow(
     modifier: Modifier = Modifier,
 ) {
     val generator =
-        remember(totp.periodSeconds, totp.digest) {
+        remember(totp.periodSeconds, totp.digest, totp.otpLength) {
             TOTPGenerator(
                 timeStepSeconds = totp.periodSeconds,
                 digest = asHMACDigest(totp.digest),
+                otpLength = asOTPLength(totp.otpLength),
             )
         }
     var code by remember { mutableStateOf("000000") }
@@ -655,10 +705,11 @@ fun TotpRow(
 }
 
 private fun formatCode(code: String) =
-    if (code.length == 6) {
-        "${code.take(3)} ${code.takeLast(3)}"
-    } else {
-        code
+    when (code.length) {
+        6 -> "${code.take(3)} ${code.takeLast(3)}"
+        7 -> "${code.take(4)} ${code.takeLast(3)}"
+        8 -> "${code.take(4)} ${code.takeLast(4)}"
+        else -> code
     }
 
 @Composable
