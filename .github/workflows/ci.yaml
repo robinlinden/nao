@@ -17,6 +17,14 @@ jobs:
       - run: curl -sSLo compose-rules https://github.com/mrmans0n/compose-rules/releases/download/v0.5.8/ktlint-compose-0.5.8-all.jar
       - run: ./ktlint --ruleset=compose-rules
 
+  prettier:
+    runs-on: ubuntu-slim
+    steps:
+      - uses: actions/checkout@v6
+      - run: npm install --global prettier@3.8.3
+      - run: npx prettier --ignore-path .gitignore --write .
+      - run: git diff --exit-code
+
   gradle:
     runs-on: ${{ matrix.os }}
     strategy:
