@@ -1,5 +1,6 @@
 package ltd.evilcorp.nao
 
+import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color.TRANSPARENT
@@ -66,6 +67,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -174,6 +177,7 @@ class MainActivity : ComponentActivity() {
                 var itemToEdit by remember { mutableStateOf<TotpItem?>(null) }
                 var showMenu by remember { mutableStateOf(false) }
 
+                val clipboard = LocalClipboard.current
                 val snackbarHostState = remember { SnackbarHostState() }
                 val scope = rememberCoroutineScope()
 
@@ -279,6 +283,12 @@ class MainActivity : ComponentActivity() {
                 ) { innerPadding ->
                     TotpList(
                         items = items,
+                        onItemClick = { item, code ->
+                            scope.launch {
+                                clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(null, code)))
+                                snackbarHostState.showSnackbar("Copied code for ${item.name}")
+                            }
+                        },
                         onLongClick = { itemToActions = it },
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = innerPadding,
@@ -633,6 +643,7 @@ private fun validatePeriod(period: String): String? {
 @Composable
 fun TotpRow(
     totp: TotpItem,
+    onClick: (String) -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -664,7 +675,7 @@ fun TotpRow(
 
     Card(
         modifier = modifier.combinedClickable(
-            onClick = { },
+            onClick = { onClick(code) },
             onLongClick = onLongClick,
         ),
         shape = MaterialTheme.shapes.medium,
@@ -715,6 +726,7 @@ private fun formatCode(code: String) =
 @Composable
 fun TotpList(
     items: List<TotpItem>,
+    onItemClick: (TotpItem, String) -> Unit,
     onLongClick: (TotpItem) -> Unit,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
@@ -733,6 +745,7 @@ fun TotpList(
         items(items) { item ->
             TotpRow(
                 totp = item,
+                onClick = { code -> onItemClick(item, code) },
                 onLongClick = { onLongClick(item) },
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -770,6 +783,7 @@ private fun GreetingPreview() {
     NaoTheme {
         TotpList(
             items = dummyEntries,
+            onItemClick = { _, _ -> },
             onLongClick = {},
         )
     }
