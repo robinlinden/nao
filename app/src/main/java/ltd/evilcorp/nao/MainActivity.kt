@@ -71,6 +71,7 @@ import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -178,6 +179,12 @@ class MainActivity : ComponentActivity() {
                 var itemToEdit by remember { mutableStateOf<TotpItem?>(null) }
                 var showMenu by remember { mutableStateOf(false) }
 
+                val exportSuccessMessage = stringResource(R.string.export_success)
+                val exportFailedMessage = stringResource(R.string.export_failed)
+                val importSuccessPattern = stringResource(R.string.import_success)
+                val importFailedMessage = stringResource(R.string.import_failed)
+                val copiedCodePattern = stringResource(R.string.copied_code)
+
                 val clipboard = LocalClipboard.current
                 val snackbarHostState = remember { SnackbarHostState() }
                 val scope = rememberCoroutineScope()
@@ -196,9 +203,9 @@ class MainActivity : ComponentActivity() {
                                 os.write(json.toByteArray())
                             } ?: throw Exception("Failed to open output stream")
 
-                            snackbarHostState.showSnackbar("Exported successfully")
+                            snackbarHostState.showSnackbar(exportSuccessMessage)
                         } catch (e: Exception) {
-                            snackbarHostState.showSnackbar("Export failed")
+                            snackbarHostState.showSnackbar(exportFailedMessage)
                             Log.e("MainActivity", "Export failed", e)
                         }
                     }
@@ -225,10 +232,10 @@ class MainActivity : ComponentActivity() {
                                 val oldSize = items.size
                                 items = (items + newItems).distinct()
                                 val addedCount = items.size - oldSize
-                                snackbarHostState.showSnackbar("Imported $addedCount new items")
+                                snackbarHostState.showSnackbar(importSuccessPattern.format(addedCount))
                             }
                         } catch (e: Exception) {
-                            snackbarHostState.showSnackbar("Import failed")
+                            snackbarHostState.showSnackbar(importFailedMessage)
                             Log.e("MainActivity", "Import failed", e)
                         }
                     }
@@ -239,7 +246,7 @@ class MainActivity : ComponentActivity() {
                     snackbarHost = { SnackbarHost(snackbarHostState) },
                     topBar = {
                         TopAppBar(
-                            title = { Text("Nao") },
+                            title = { Text(stringResource(R.string.app_name)) },
                             colors = TopAppBarDefaults.topAppBarColors(
                                 containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
                                 scrolledContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
@@ -248,7 +255,7 @@ class MainActivity : ComponentActivity() {
                                 IconButton(onClick = { showMenu = true }) {
                                     Icon(
                                         painter = painterResource(R.drawable.ic_more_vert),
-                                        contentDescription = "More",
+                                        contentDescription = stringResource(R.string.more_options),
                                     )
                                 }
                                 DropdownMenu(
@@ -256,14 +263,14 @@ class MainActivity : ComponentActivity() {
                                     onDismissRequest = { showMenu = false },
                                 ) {
                                     DropdownMenuItem(
-                                        text = { Text("Export JSON") },
+                                        text = { Text(stringResource(R.string.export_json)) },
                                         onClick = {
                                             showMenu = false
                                             exportLauncher.launch("nao.json")
                                         },
                                     )
                                     DropdownMenuItem(
-                                        text = { Text("Import JSON") },
+                                        text = { Text(stringResource(R.string.import_json)) },
                                         onClick = {
                                             showMenu = false
                                             importLauncher.launch(arrayOf("application/json"))
@@ -277,7 +284,7 @@ class MainActivity : ComponentActivity() {
                         FloatingActionButton(onClick = { showAddSheet = true }) {
                             Icon(
                                 painter = painterResource(android.R.drawable.ic_input_add),
-                                contentDescription = "Add",
+                                contentDescription = stringResource(R.string.add_item),
                             )
                         }
                     },
@@ -287,7 +294,7 @@ class MainActivity : ComponentActivity() {
                         onItemClick = { item, code ->
                             scope.launch {
                                 clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(null, code)))
-                                snackbarHostState.showSnackbar("Copied code for ${item.name}")
+                                snackbarHostState.showSnackbar(copiedCodePattern.format(item.name))
                             }
                         },
                         onLongClick = { itemToActions = it },
@@ -393,22 +400,31 @@ fun AddTotpSheet(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text(if (isEdit) "Edit TOTP" else "Add New TOTP", style = MaterialTheme.typography.headlineSmall)
+            val nameEmptyError = stringResource(R.string.error_name_empty)
+            val secretBase32Error = stringResource(R.string.error_secret_base32)
+            val secretLengthError = stringResource(R.string.error_secret_length)
+            val periodIntegerError = stringResource(R.string.error_period_integer)
+            val periodRangeError = stringResource(R.string.error_period_range)
+
+            Text(
+                if (isEdit) stringResource(R.string.edit_totp) else stringResource(R.string.add_totp),
+                style = MaterialTheme.typography.headlineSmall,
+            )
             TextField(
                 value = name,
                 onValueChange = {
                     name = it
-                    nameError = validateName(it)
+                    nameError = validateName(it, nameEmptyError)
                 },
                 isError = nameError != null,
                 supportingText = { nameError?.let { Text(it) } },
-                label = { Text("Name") },
+                label = { Text(stringResource(R.string.label_name)) },
                 modifier = Modifier.fillMaxWidth(),
             )
             TextField(
                 value = extraInfo,
                 onValueChange = { extraInfo = it },
-                label = { Text("Extra Info") },
+                label = { Text(stringResource(R.string.label_extra_info)) },
                 modifier = Modifier.fillMaxWidth(),
                 // Hack to give this TextField the same margins as the rest.
                 supportingText = { },
@@ -417,9 +433,9 @@ fun AddTotpSheet(
                 value = secret,
                 onValueChange = {
                     secret = it
-                    secretError = validateSecret(it, digest)
+                    secretError = validateSecret(it, digest, secretBase32Error, secretLengthError)
                 },
-                label = { Text("Secret (Base32)") },
+                label = { Text(stringResource(R.string.label_secret)) },
                 isError = secretError != null,
                 supportingText = { secretError?.let { Text(it) } },
                 modifier = Modifier.fillMaxWidth(),
@@ -427,7 +443,7 @@ fun AddTotpSheet(
 
             if (!showAdvanced) {
                 TextButton(onClick = { showAdvanced = true }) {
-                    Text("Show advanced")
+                    Text(stringResource(R.string.show_advanced))
                 }
             }
 
@@ -436,9 +452,9 @@ fun AddTotpSheet(
                     value = period,
                     onValueChange = {
                         period = it
-                        periodError = validatePeriod(it)
+                        periodError = validatePeriod(it, periodIntegerError, periodRangeError)
                     },
-                    label = { Text("Period (seconds)") },
+                    label = { Text(stringResource(R.string.label_period)) },
                     isError = periodError != null,
                     supportingText = { periodError?.let { Text(it) } },
                     modifier = Modifier.fillMaxWidth(),
@@ -454,7 +470,7 @@ fun AddTotpSheet(
                         value = digest.name.uppercase(),
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Algorithm") },
+                        label = { Text(stringResource(R.string.label_algorithm)) },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                         colors = ExposedDropdownMenuDefaults.textFieldColors(),
                         modifier = Modifier
@@ -471,7 +487,7 @@ fun AddTotpSheet(
                                 onClick = {
                                     digest = selectionOption
                                     expanded = false
-                                    secretError = validateSecret(secret, digest)
+                                    secretError = validateSecret(secret, digest, secretBase32Error, secretLengthError)
                                 },
                                 contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding,
                             )
@@ -489,7 +505,7 @@ fun AddTotpSheet(
                         value = otpLength.toString(),
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("OTP Length") },
+                        label = { Text(stringResource(R.string.label_otp_length)) },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = lengthExpanded) },
                         colors = ExposedDropdownMenuDefaults.textFieldColors(),
                         modifier = Modifier
@@ -531,7 +547,7 @@ fun AddTotpSheet(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = hasRequiredValues && nameError == null && secretError == null && periodError == null && !isDuplicate,
             ) {
-                Text(if (isDuplicate) "Already added" else "Save")
+                Text(if (isDuplicate) stringResource(R.string.already_added) else stringResource(R.string.save))
             }
 
             Spacer(modifier = Modifier.height(32.dp))
@@ -552,7 +568,7 @@ fun TotpActionsSheet(
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(modifier = Modifier.padding(bottom = 32.dp)) {
             ListItem(
-                headlineContent = { Text("Edit") },
+                headlineContent = { Text(stringResource(R.string.action_edit)) },
                 leadingContent = {
                     Icon(
                         painter = painterResource(android.R.drawable.ic_menu_edit),
@@ -567,7 +583,7 @@ fun TotpActionsSheet(
                 ),
             )
             ListItem(
-                headlineContent = { Text("Delete") },
+                headlineContent = { Text(stringResource(R.string.action_delete)) },
                 leadingContent = {
                     Icon(
                         painter = painterResource(android.R.drawable.ic_menu_delete),
@@ -587,41 +603,46 @@ fun TotpActionsSheet(
     if (showConfirmation) {
         AlertDialog(
             onDismissRequest = { showConfirmation = false },
-            title = { Text("Delete TOTP") },
-            text = { Text("Are you sure you want to delete ${totp.name}? This action cannot be undone.") },
+            title = { Text(stringResource(R.string.delete_totp_title)) },
+            text = { Text(stringResource(R.string.delete_totp_message, totp.name)) },
             confirmButton = {
                 TextButton(onClick = {
                     showConfirmation = false
                     onDelete()
                 }) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.action_delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showConfirmation = false }) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.cancel))
                 }
             },
         )
     }
 }
 
-private fun validateName(name: String): String? = if (name.isEmpty()) "Name may not be empty" else null
+private fun validateName(
+    name: String,
+    emptyErrorMessage: String,
+): String? = if (name.isEmpty()) emptyErrorMessage else null
 
 private fun isBase32Character(char: Char): Boolean = char in 'A'..'Z' || char in 'a'..'z' || char in '2'..'7' || char == '='
 
 private fun validateSecret(
     secret: String,
     digest: Digest,
+    base32ErrorMessage: String,
+    lengthErrorMessage: String,
 ): String? {
-    if (secret.any { !isBase32Character(it) }) return "Secret must be base32 encoded"
-    if (secret.substringAfter('=', "").any { it != '=' }) return "Secret must be base32 encoded"
+    if (secret.any { !isBase32Character(it) }) return base32ErrorMessage
+    if (secret.substringAfter('=', "").any { it != '=' }) return base32ErrorMessage
 
     // The RFC for this says that secrets MUST be at least 128 bits. That's sadly not
     // true in practice right now, so we allow secrets that are as weak as 80 bits.
     // https://datatracker.ietf.org/doc/html/rfc6238#section-3
     // https://datatracker.ietf.org/doc/html/rfc4226#section-4
-    if (secret.length < 16) return "Secret must be at least 16 characters long"
+    if (secret.length < 16) return lengthErrorMessage
 
     return try {
         val s = TOTPSecret.fromBase32EncodedString(secret)
@@ -631,13 +652,17 @@ private fun validateSecret(
     } catch (_: Exception) {
         // This should in theory be unreachable due to the prior checks, but 1time's
         // opinions about what's base32 and what isn't are interesting.
-        "Secret must be base32 encoded"
+        base32ErrorMessage
     }
 }
 
-private fun validatePeriod(period: String): String? {
-    val p = period.toIntOrNull() ?: return "Must be an integer"
-    if (p !in 1..3600) return "Period must be between 1 and 3600 seconds"
+private fun validatePeriod(
+    period: String,
+    integerErrorMessage: String,
+    rangeErrorMessage: String,
+): String? {
+    val p = period.toIntOrNull() ?: return integerErrorMessage
+    if (p !in 1..3600) return rangeErrorMessage
     return null
 }
 

@@ -1,3 +1,33 @@
 <resources>
     <string name="app_name">Nao</string>
+    <string name="export_success">Exported successfully</string>
+    <string name="export_failed">Export failed</string>
+    <string name="import_success">Imported %1$d new items</string>
+    <string name="import_failed">Import failed</string>
+    <string name="more_options">More</string>
+    <string name="export_json">Export JSON</string>
+    <string name="import_json">Import JSON</string>
+    <string name="add_item">Add</string>
+    <string name="copied_code">Copied code for %1$s</string>
+    <string name="edit_totp">Edit TOTP</string>
+    <string name="add_totp">Add New TOTP</string>
+    <string name="label_name">Name</string>
+    <string name="label_extra_info">Extra Info</string>
+    <string name="label_secret">Secret (Base32)</string>
+    <string name="show_advanced">Show advanced</string>
+    <string name="label_period">Period (seconds)</string>
+    <string name="label_algorithm">Algorithm</string>
+    <string name="label_otp_length">OTP Length</string>
+    <string name="already_added">Already added</string>
+    <string name="save">Save</string>
+    <string name="action_edit">Edit</string>
+    <string name="action_delete">Delete</string>
+    <string name="delete_totp_title">Delete TOTP</string>
+    <string name="delete_totp_message">Are you sure you want to delete %1$s? This action cannot be undone.</string>
+    <string name="cancel">Cancel</string>
+    <string name="error_name_empty">Name may not be empty</string>
+    <string name="error_secret_base32">Secret must be base32 encoded</string>
+    <string name="error_secret_length">Secret must be at least 16 characters long</string>
+    <string name="error_period_integer">Must be an integer</string>
+    <string name="error_period_range">Period must be between 1 and 3600 seconds</string>
 </resources>
