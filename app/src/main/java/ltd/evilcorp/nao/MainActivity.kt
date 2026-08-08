@@ -89,6 +89,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import java.util.Date
+import kotlin.time.Duration.Companion.milliseconds
 
 private fun asHMACDigest(digest: Digest) =
     when (digest) {
@@ -669,7 +670,7 @@ fun TotpRow(
 
             // TODO(robinlinden): Scale this based on the period. 100ms looks fine for longer
             //  periods, but very silly for shorter ones.
-            delay(100)
+            delay(100.milliseconds)
         }
     }
 
