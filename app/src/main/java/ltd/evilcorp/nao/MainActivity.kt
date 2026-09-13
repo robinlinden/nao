@@ -64,6 +64,8 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -87,6 +89,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import ltd.evilcorp.nao.ui.theme.NaoTheme
 import org.json.JSONArray
+import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -107,6 +110,11 @@ private fun asOTPLength(length: Int) =
         8 -> OTPLength.EIGHT
         else -> OTPLength.SIX
     }
+
+private val HotpItemSetSaver = Saver<Set<HotpItem>, List<String>>(
+    save = { set -> set.map { it.toJson().toString() } },
+    restore = { list -> list.map { HotpItem.fromJson(JSONObject(it)) }.toSet() },
+)
 
 private fun isOtpAuthIntent(intent: Intent): Boolean = intent.action == Intent.ACTION_VIEW && intent.data?.scheme == "otpauth"
 
@@ -175,6 +183,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             NaoTheme {
                 var items by remember { mutableStateOf(initialItems) }
+                var refreshedInSession by rememberSaveable(stateSaver = HotpItemSetSaver) { mutableStateOf(emptySet()) }
                 var showAddSheet by remember { mutableStateOf(otpArg != null) }
                 var itemToActions by remember { mutableStateOf<OtpItem?>(null) }
                 var itemToEdit by remember { mutableStateOf<OtpItem?>(null) }
@@ -292,6 +301,7 @@ class MainActivity : ComponentActivity() {
                 ) { innerPadding ->
                     OtpList(
                         items = items,
+                        refreshedInSession = refreshedInSession,
                         onItemClick = { item, code ->
                             scope.launch {
                                 clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(null, code)))
@@ -317,6 +327,10 @@ class MainActivity : ComponentActivity() {
                                 }
                                 showAddSheet = false
                                 itemToEdit = null
+
+                                if (newItem is HotpItem) {
+                                    refreshedInSession = refreshedInSession + newItem
+                                }
                             },
                             initialValues = itemToEdit ?: otpArg,
                             existingItems = items,
@@ -337,10 +351,11 @@ class MainActivity : ComponentActivity() {
                                 itemToActions = null
                             },
                             onRefresh = {
-                                if (itemToActions is HotpItem) {
-                                    val hotp = itemToActions as HotpItem
-                                    val updated = hotp.copy(counter = hotp.counter + 1)
-                                    items = items.map { if (it == hotp) updated else it }
+                                val currentItem = itemToActions
+                                if (currentItem is HotpItem) {
+                                    val updated = currentItem.copy(counter = currentItem.counter + 1)
+                                    items = items.map { if (it == currentItem) updated else it }
+                                    refreshedInSession = refreshedInSession + updated
                                 }
                                 itemToActions = null
                             },
@@ -861,6 +876,7 @@ fun TotpRow(
 @Composable
 fun HotpRow(
     hotp: HotpItem,
+    isRefreshed: Boolean,
     onClick: (String) -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -905,7 +921,13 @@ fun HotpRow(
             Text(
                 text = formatCode(code),
                 style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.primary,
+                color = if (isRefreshed) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                        alpha = 0.5f,
+                    )
+                },
                 fontWeight = FontWeight.Bold,
             )
         }
@@ -923,6 +945,7 @@ private fun formatCode(code: String) =
 @Composable
 fun OtpList(
     items: List<OtpItem>,
+    refreshedInSession: Set<HotpItem>,
     onItemClick: (OtpItem, String) -> Unit,
     onLongClick: (OtpItem) -> Unit,
     modifier: Modifier = Modifier,
@@ -953,6 +976,7 @@ fun OtpList(
                 is HotpItem -> {
                     HotpRow(
                         hotp = item,
+                        isRefreshed = refreshedInSession.contains(item),
                         onClick = { code -> onItemClick(item, code) },
                         onLongClick = { onLongClick(item) },
                         modifier = Modifier.fillMaxWidth(),
@@ -993,6 +1017,7 @@ private fun GreetingPreview() {
     NaoTheme {
         OtpList(
             items = dummyEntries,
+            refreshedInSession = emptySet(),
             onItemClick = { _, _ -> },
             onLongClick = {},
         )
