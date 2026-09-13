@@ -63,6 +63,11 @@ class IntegrationTest {
             composeTestRule.onNodeWithText("AAAAAAAAAAAAAAAA").assertExists()
             composeTestRule.onNodeWithText("29").assertExists()
 
+            // Swipe the BottomSheet up to expand it, or the Save-button might not be in view.
+            composeTestRule.onNodeWithText("Name").onParent().performTouchInput {
+                swipeUp()
+            }
+
             // Click save.
             composeTestRule.onNodeWithText("Save").performClick()
 
@@ -89,6 +94,11 @@ class IntegrationTest {
             // Period is almost always 30, so it's hidden behind the 'advanced' option.
             composeTestRule.onNodeWithText("Show advanced").performClick()
             composeTestRule.onNodeWithText("Period (seconds)").performTextReplacement("60")
+
+            // Swipe the BottomSheet up to expand it, or the Save-button might not be in view.
+            composeTestRule.onNodeWithText("Name").onParent().performTouchInput {
+                swipeUp()
+            }
 
             // Click save.
             composeTestRule.onNodeWithText("Save").performClick()
@@ -446,6 +456,70 @@ class IntegrationTest {
             // Verify that we can't save the entry with no changes made.
             composeTestRule.onNodeWithText("Already added").assertIsDisplayed()
             composeTestRule.onNodeWithText("Already added").assertIsNotEnabled()
+        }
+    }
+
+    @Test
+    fun testHotpManualInputAndIncrement() {
+        ActivityScenario.launch(MainActivity::class.java).use {
+            // Click add button.
+            composeTestRule.onNodeWithContentDescription("Add").performClick()
+
+            // Select Type dropdown and pick HOTP.
+            composeTestRule.onNodeWithText("Time-based (TOTP)").performClick()
+            composeTestRule.onNodeWithText("Counter-based (HOTP)").performClick()
+
+            // Check if fields change appropriately.
+            composeTestRule.onNodeWithText("Add New HOTP").assertIsDisplayed()
+
+            // Fill in the data.
+            composeTestRule.onNodeWithText("Name").performTextInput("HOTP Token")
+            composeTestRule.onNodeWithText("Extra Info").performTextInput("hotp@example.com")
+            composeTestRule.onNodeWithText("Secret (Base32)").performTextInput("AAAAAAAAAAAAAAAA")
+
+            composeTestRule.onNodeWithText("Show advanced").performClick()
+            composeTestRule.onNodeWithText("Counter").performTextInput("5")
+
+            // Swipe BottomSheet up to expand it.
+            composeTestRule.onNodeWithText("Name").onParent().performTouchInput {
+                swipeUp()
+            }
+
+            // Click save.
+            composeTestRule.onNodeWithText("Save").performClick()
+
+            // Verify it appears in the list.
+            composeTestRule.onNodeWithText("HOTP Token").assertIsDisplayed()
+            composeTestRule.onNodeWithText("hotp@example.com").assertIsDisplayed()
+
+            // Long-press to refresh.
+            composeTestRule.onNodeWithText("HOTP Token").performTouchInput { longClick() }
+            composeTestRule.onNodeWithText("Refresh Code").performClick()
+        }
+    }
+
+    @Test
+    fun testHotpUriIntent() {
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            data = Uri.parse("otpauth://hotp/HolyHOTP:user@hotp.faketld?secret=AAAAAAAAAAAAAAAA&counter=42")
+            setClassName("ltd.evilcorp.nao", "ltd.evilcorp.nao.MainActivity")
+        }
+
+        ActivityScenario.launch<MainActivity>(intent).use {
+            // Check if sheet opens with HOTP details correctly mapped.
+            composeTestRule.onNodeWithText("Add New HOTP").assertIsDisplayed()
+            composeTestRule.onNodeWithText("HolyHOTP").assertIsDisplayed()
+            composeTestRule.onNodeWithText("user@hotp.faketld").assertExists()
+            composeTestRule.onNodeWithText("42").assertExists()
+
+            // Swipe up and save.
+            composeTestRule.onNodeWithText("Name").onParent().performTouchInput {
+                swipeUp()
+            }
+            composeTestRule.onNodeWithText("Save").performClick()
+
+            // Check list existence.
+            composeTestRule.onNodeWithText("HolyHOTP").assertIsDisplayed()
         }
     }
 }

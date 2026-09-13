@@ -22,6 +22,7 @@
     <string name="save">Save</string>
     <string name="action_edit">Edit</string>
     <string name="action_delete">Delete</string>
+    <string name="action_refresh">Refresh Code</string>
     <string name="delete_totp_title">Delete TOTP</string>
     <string name="delete_totp_message">Are you sure you want to delete %1$s? This action cannot be undone.</string>
     <string name="cancel">Cancel</string>
@@ -30,4 +31,12 @@
     <string name="error_secret_length">Secret must be at least 16 characters long</string>
     <string name="error_period_integer">Must be an integer</string>
     <string name="error_period_range">Period must be between 1 and 3600 seconds</string>
+    <string name="label_type">Type</string>
+    <string name="type_totp">Time-based (TOTP)</string>
+    <string name="type_hotp">Counter-based (HOTP)</string>
+    <string name="label_counter">Counter</string>
+    <string name="error_counter_integer">Must be a non-negative integer</string>
+    <string name="edit_hotp">Edit HOTP</string>
+    <string name="add_hotp">Add New HOTP</string>
+    <string name="delete_hotp_title">Delete HOTP</string>
 </resources>

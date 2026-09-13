@@ -76,6 +76,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.atlassian.onetime.core.HMACDigest
+import com.atlassian.onetime.core.HOTPGenerator
 import com.atlassian.onetime.core.OTPLength
 import com.atlassian.onetime.core.TOTPGenerator
 import com.atlassian.onetime.model.TOTPSecret
@@ -111,7 +112,7 @@ private fun isOtpAuthIntent(intent: Intent): Boolean = intent.action == Intent.A
 
 private suspend fun saveItems(
     context: Context,
-    items: List<TotpItem>,
+    items: List<OtpItem>,
 ) = withContext(Dispatchers.IO) {
     val array = JSONArray()
     items.forEach { array.put(it.toJson()) }
@@ -128,7 +129,7 @@ private suspend fun saveItems(
     }
 }
 
-private suspend fun loadItems(context: Context): List<TotpItem> =
+private suspend fun loadItems(context: Context): List<OtpItem> =
     withContext(Dispatchers.IO) {
         val file = File(context.filesDir, "nao.json")
         if (!file.exists()) return@withContext emptyList()
@@ -137,9 +138,9 @@ private suspend fun loadItems(context: Context): List<TotpItem> =
             val atomicFile = AtomicFile(file)
             val jsonString = atomicFile.openRead().bufferedReader().use { it.readText() }
             val array = JSONArray(jsonString)
-            val items = mutableListOf<TotpItem>()
+            val items = mutableListOf<OtpItem>()
             for (i in 0 until array.length()) {
-                items.add(TotpItem.fromJson(array.getJSONObject(i)))
+                items.add(OtpItem.fromJson(array.getJSONObject(i)))
             }
             items
         } catch (e: Exception) {
@@ -156,8 +157,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val totpArg = if (isOtpAuthIntent(intent)) {
-            TotpItem.fromUrl(intent.data!!)
+        val otpArg = if (isOtpAuthIntent(intent)) {
+            OtpItem.fromUrl(intent.data!!)
         } else {
             null
         }
@@ -174,9 +175,9 @@ class MainActivity : ComponentActivity() {
         setContent {
             NaoTheme {
                 var items by remember { mutableStateOf(initialItems) }
-                var showAddSheet by remember { mutableStateOf(totpArg != null) }
-                var itemToActions by remember { mutableStateOf<TotpItem?>(null) }
-                var itemToEdit by remember { mutableStateOf<TotpItem?>(null) }
+                var showAddSheet by remember { mutableStateOf(otpArg != null) }
+                var itemToActions by remember { mutableStateOf<OtpItem?>(null) }
+                var itemToEdit by remember { mutableStateOf<OtpItem?>(null) }
                 var showMenu by remember { mutableStateOf(false) }
 
                 val exportSuccessMessage = stringResource(R.string.export_success)
@@ -223,9 +224,9 @@ class MainActivity : ComponentActivity() {
                             val jsonString = contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
                                 ?: throw Exception("Failed to open input stream")
                             val array = JSONArray(jsonString)
-                            val newItems = mutableListOf<TotpItem>()
+                            val newItems = mutableListOf<OtpItem>()
                             for (i in 0 until array.length()) {
-                                newItems.add(TotpItem.fromJson(array.getJSONObject(i)))
+                                newItems.add(OtpItem.fromJson(array.getJSONObject(i)))
                             }
 
                             withContext(Dispatchers.Main) {
@@ -289,7 +290,7 @@ class MainActivity : ComponentActivity() {
                         }
                     },
                 ) { innerPadding ->
-                    TotpList(
+                    OtpList(
                         items = items,
                         onItemClick = { item, code ->
                             scope.launch {
@@ -303,7 +304,7 @@ class MainActivity : ComponentActivity() {
                     )
 
                     if (showAddSheet || itemToEdit != null) {
-                        AddTotpSheet(
+                        AddOtpSheet(
                             onDismiss = {
                                 showAddSheet = false
                                 itemToEdit = null
@@ -317,15 +318,15 @@ class MainActivity : ComponentActivity() {
                                 showAddSheet = false
                                 itemToEdit = null
                             },
-                            initialValues = itemToEdit ?: totpArg,
+                            initialValues = itemToEdit ?: otpArg,
                             existingItems = items,
                             isEdit = itemToEdit != null,
                         )
                     }
 
                     if (itemToActions != null) {
-                        TotpActionsSheet(
-                            totp = itemToActions!!,
+                        OtpActionsSheet(
+                            otp = itemToActions!!,
                             onDismiss = { itemToActions = null },
                             onEdit = {
                                 itemToEdit = itemToActions
@@ -333,6 +334,14 @@ class MainActivity : ComponentActivity() {
                             },
                             onDelete = {
                                 items = items.filter { it != itemToActions }
+                                itemToActions = null
+                            },
+                            onRefresh = {
+                                if (itemToActions is HotpItem) {
+                                    val hotp = itemToActions as HotpItem
+                                    val updated = hotp.copy(counter = hotp.counter + 1)
+                                    items = items.map { if (it == hotp) updated else it }
+                                }
                                 itemToActions = null
                             },
                         )
@@ -354,11 +363,11 @@ private const val DEFAULT_OTP_LENGTH = 6
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddTotpSheet(
+fun AddOtpSheet(
     onDismiss: () -> Unit,
-    onSave: (TotpItem) -> Unit,
-    initialValues: TotpItem?,
-    existingItems: List<TotpItem>,
+    onSave: (OtpItem) -> Unit,
+    initialValues: OtpItem?,
+    existingItems: List<OtpItem>,
     isEdit: Boolean = false,
 ) {
     val initial = initialValues ?: TotpItem(
@@ -370,22 +379,26 @@ fun AddTotpSheet(
         otpLength = DEFAULT_OTP_LENGTH,
     )
 
+    var isHotp by remember { mutableStateOf(initial is HotpItem) }
+
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = initialValues != null)
     var name by remember { mutableStateOf(initial.name) }
     var extraInfo by remember { mutableStateOf(initial.extraInfo) }
     var secret by remember { mutableStateOf(initial.secret) }
-    var period by remember { mutableStateOf(initial.periodSeconds.toString()) }
+    var period by remember { mutableStateOf(if (initial is TotpItem) initial.periodSeconds.toString() else DEFAULT_PERIOD.toString()) }
+    var counter by remember { mutableStateOf(if (initial is HotpItem) initial.counter.toString() else "0") }
     var digest by remember { mutableStateOf(initial.digest) }
     var otpLength by remember { mutableIntStateOf(initial.otpLength) }
 
     var nameError by remember { mutableStateOf<String?>(null) }
     var secretError by remember { mutableStateOf<String?>(null) }
     var periodError by remember { mutableStateOf<String?>(null) }
+    var counterError by remember { mutableStateOf<String?>(null) }
 
     var showAdvanced by remember {
-        mutableStateOf(
-            initial.periodSeconds != DEFAULT_PERIOD || initial.digest != DEFAULT_DIGEST || initial.otpLength != DEFAULT_OTP_LENGTH,
-        )
+        val periodWasChanged = initial is TotpItem && initial.periodSeconds != DEFAULT_PERIOD
+        val counterWasChanged = initial is HotpItem && initial.counter != 0L
+        mutableStateOf(periodWasChanged || counterWasChanged || initial.digest != DEFAULT_DIGEST || initial.otpLength != DEFAULT_OTP_LENGTH)
     }
 
     ModalBottomSheet(
@@ -405,11 +418,59 @@ fun AddTotpSheet(
             val secretLengthError = stringResource(R.string.error_secret_length)
             val periodIntegerError = stringResource(R.string.error_period_integer)
             val periodRangeError = stringResource(R.string.error_period_range)
+            val counterIntegerError = stringResource(R.string.error_counter_integer)
 
             Text(
-                if (isEdit) stringResource(R.string.edit_totp) else stringResource(R.string.add_totp),
+                if (isEdit) {
+                    if (isHotp) stringResource(R.string.edit_hotp) else stringResource(R.string.edit_totp)
+                } else {
+                    if (isHotp) stringResource(R.string.add_hotp) else stringResource(R.string.add_totp)
+                },
                 style = MaterialTheme.typography.headlineSmall,
             )
+
+            if (!isEdit) {
+                var typeExpanded by remember { mutableStateOf(false) }
+                ExposedDropdownMenuBox(
+                    expanded = typeExpanded,
+                    onExpandedChange = { typeExpanded = !typeExpanded },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    TextField(
+                        value = if (isHotp) stringResource(R.string.type_hotp) else stringResource(R.string.type_totp),
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text(stringResource(R.string.label_type)) },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = typeExpanded) },
+                        colors = ExposedDropdownMenuDefaults.textFieldColors(),
+                        modifier = Modifier
+                            .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true)
+                            .fillMaxWidth(),
+                    )
+                    ExposedDropdownMenu(
+                        expanded = typeExpanded,
+                        onDismissRequest = { typeExpanded = false },
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.type_totp)) },
+                            onClick = {
+                                isHotp = false
+                                typeExpanded = false
+                            },
+                            contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding,
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.type_hotp)) },
+                            onClick = {
+                                isHotp = true
+                                typeExpanded = false
+                            },
+                            contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding,
+                        )
+                    }
+                }
+            }
+
             TextField(
                 value = name,
                 onValueChange = {
@@ -447,7 +508,21 @@ fun AddTotpSheet(
                 }
             }
 
-            if (showAdvanced) {
+            if (isHotp && showAdvanced) {
+                TextField(
+                    value = counter,
+                    onValueChange = {
+                        counter = it
+                        counterError = validateCounter(it, counterIntegerError)
+                    },
+                    label = { Text(stringResource(R.string.label_counter)) },
+                    isError = counterError != null,
+                    supportingText = { counterError?.let { Text(it) } },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+
+            if (!isHotp && showAdvanced) {
                 TextField(
                     value = period,
                     onValueChange = {
@@ -459,7 +534,9 @@ fun AddTotpSheet(
                     supportingText = { periodError?.let { Text(it) } },
                     modifier = Modifier.fillMaxWidth(),
                 )
+            }
 
+            if (showAdvanced) {
                 var expanded by remember { mutableStateOf(false) }
                 ExposedDropdownMenuBox(
                     expanded = expanded,
@@ -530,22 +607,35 @@ fun AddTotpSheet(
                 }
             }
 
-            val hasRequiredValues = name.isNotEmpty() && secret.isNotEmpty() && period.isNotEmpty()
+            val hasRequiredValues = name.isNotEmpty() && secret.isNotEmpty() && (if (isHotp) counter.isNotEmpty() else period.isNotEmpty())
             // TODO(robinlinden): Less strict comparison. Maybe something like:
             //   * <entry> already added w/ same secret
             //   * <entry> already added w/ different secret
             //   * secret already added as <entry>
-            val isDuplicate = remember(name, extraInfo, secret, period, digest, otpLength) {
-                val p = period.toIntOrNull() ?: return@remember false
-                val candidate = TotpItem(name, extraInfo, secret, p, digest, otpLength)
+            val isDuplicate = remember(isHotp, name, extraInfo, secret, period, counter, digest, otpLength) {
+                val candidate = if (isHotp) {
+                    val c = counter.toLongOrNull() ?: return@remember false
+                    HotpItem(name, extraInfo, secret, c, digest, otpLength)
+                } else {
+                    val p = period.toIntOrNull() ?: return@remember false
+                    TotpItem(name, extraInfo, secret, p, digest, otpLength)
+                }
                 existingItems.any { it == candidate }
             }
             Button(
                 onClick = {
-                    onSave(TotpItem(name, extraInfo, secret, period.toInt(), digest, otpLength))
+                    val newItem = if (isHotp) {
+                        HotpItem(name, extraInfo, secret, counter.toLong(), digest, otpLength)
+                    } else {
+                        TotpItem(name, extraInfo, secret, period.toInt(), digest, otpLength)
+                    }
+                    onSave(newItem)
                 },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = hasRequiredValues && nameError == null && secretError == null && periodError == null && !isDuplicate,
+                enabled =
+                    hasRequiredValues && nameError == null && secretError == null &&
+                        (if (isHotp) counterError == null else periodError == null) &&
+                        !isDuplicate,
             ) {
                 Text(if (isDuplicate) stringResource(R.string.already_added) else stringResource(R.string.save))
             }
@@ -557,16 +647,34 @@ fun AddTotpSheet(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TotpActionsSheet(
-    totp: TotpItem,
+fun OtpActionsSheet(
+    otp: OtpItem,
     onDismiss: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
+    onRefresh: () -> Unit,
 ) {
     var showConfirmation by remember { mutableStateOf(false) }
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(modifier = Modifier.padding(bottom = 32.dp)) {
+            if (otp is HotpItem) {
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.action_refresh)) },
+                    leadingContent = {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_refresh),
+                            contentDescription = null,
+                        )
+                    },
+                    modifier = Modifier.clickable {
+                        onRefresh()
+                    },
+                    colors = ListItemDefaults.colors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                    ),
+                )
+            }
             ListItem(
                 headlineContent = { Text(stringResource(R.string.action_edit)) },
                 leadingContent = {
@@ -603,8 +711,8 @@ fun TotpActionsSheet(
     if (showConfirmation) {
         AlertDialog(
             onDismissRequest = { showConfirmation = false },
-            title = { Text(stringResource(R.string.delete_totp_title)) },
-            text = { Text(stringResource(R.string.delete_totp_message, totp.name)) },
+            title = { Text(stringResource(if (otp is HotpItem) R.string.delete_hotp_title else R.string.delete_totp_title)) },
+            text = { Text(stringResource(R.string.delete_totp_message, otp.name)) },
             confirmButton = {
                 TextButton(onClick = {
                     showConfirmation = false
@@ -663,6 +771,15 @@ private fun validatePeriod(
 ): String? {
     val p = period.toIntOrNull() ?: return integerErrorMessage
     if (p !in 1..3600) return rangeErrorMessage
+    return null
+}
+
+private fun validateCounter(
+    counter: String,
+    integerErrorMessage: String,
+): String? {
+    val c = counter.toLongOrNull() ?: return integerErrorMessage
+    if (c < 0) return integerErrorMessage
     return null
 }
 
@@ -741,6 +858,60 @@ fun TotpRow(
     }
 }
 
+@Composable
+fun HotpRow(
+    hotp: HotpItem,
+    onClick: (String) -> Unit,
+    onLongClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val generator = remember(hotp.digest, hotp.otpLength) {
+        HOTPGenerator(
+            digest = asHMACDigest(hotp.digest),
+            otpLength = asOTPLength(hotp.otpLength),
+        )
+    }
+    val code = remember(hotp.counter, hotp.secret, generator) {
+        val secretBytes = TOTPSecret.fromBase32EncodedString(hotp.secret).value
+        generator.generate(secretBytes, hotp.counter).value
+    }
+
+    Card(
+        modifier = modifier.combinedClickable(
+            onClick = { onClick(code) },
+            onLongClick = onLongClick,
+        ),
+        shape = MaterialTheme.shapes.medium,
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = hotp.name,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    text = hotp.extraInfo,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Text(
+                text = formatCode(code),
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+    }
+}
+
 private fun formatCode(code: String) =
     when (code.length) {
         6 -> "${code.take(3)} ${code.takeLast(3)}"
@@ -750,10 +921,10 @@ private fun formatCode(code: String) =
     }
 
 @Composable
-fun TotpList(
-    items: List<TotpItem>,
-    onItemClick: (TotpItem, String) -> Unit,
-    onLongClick: (TotpItem) -> Unit,
+fun OtpList(
+    items: List<OtpItem>,
+    onItemClick: (OtpItem, String) -> Unit,
+    onLongClick: (OtpItem) -> Unit,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
 ) {
@@ -769,12 +940,25 @@ fun TotpList(
         ),
     ) {
         items(items) { item ->
-            TotpRow(
-                totp = item,
-                onClick = { code -> onItemClick(item, code) },
-                onLongClick = { onLongClick(item) },
-                modifier = Modifier.fillMaxWidth(),
-            )
+            when (item) {
+                is TotpItem -> {
+                    TotpRow(
+                        totp = item,
+                        onClick = { code -> onItemClick(item, code) },
+                        onLongClick = { onLongClick(item) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+
+                is HotpItem -> {
+                    HotpRow(
+                        hotp = item,
+                        onClick = { code -> onItemClick(item, code) },
+                        onLongClick = { onLongClick(item) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
         }
     }
 }
@@ -807,7 +991,7 @@ private fun GreetingPreview() {
     )
 
     NaoTheme {
-        TotpList(
+        OtpList(
             items = dummyEntries,
             onItemClick = { _, _ -> },
             onLongClick = {},
