@@ -283,7 +283,7 @@ class MainActivity : ComponentActivity() {
                     floatingActionButton = {
                         FloatingActionButton(onClick = { showAddSheet = true }) {
                             Icon(
-                                painter = painterResource(android.R.drawable.ic_input_add),
+                                painter = painterResource(R.drawable.ic_add),
                                 contentDescription = stringResource(R.string.add_item),
                             )
                         }
@@ -571,7 +571,7 @@ fun TotpActionsSheet(
                 headlineContent = { Text(stringResource(R.string.action_edit)) },
                 leadingContent = {
                     Icon(
-                        painter = painterResource(android.R.drawable.ic_menu_edit),
+                        painter = painterResource(R.drawable.ic_edit),
                         contentDescription = null,
                     )
                 },
@@ -586,7 +586,7 @@ fun TotpActionsSheet(
                 headlineContent = { Text(stringResource(R.string.action_delete)) },
                 leadingContent = {
                     Icon(
-                        painter = painterResource(android.R.drawable.ic_menu_delete),
+                        painter = painterResource(R.drawable.ic_delete),
                         contentDescription = null,
                     )
                 },
