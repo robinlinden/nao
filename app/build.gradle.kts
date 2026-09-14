@@ -6,15 +6,13 @@ plugins {
 android {
     namespace = "ltd.evilcorp.nao"
     compileSdk {
-        version = release(36) {
-            minorApiLevel = 1
-        }
+        version = release(37)
     }
 
     defaultConfig {
         applicationId = "ltd.evilcorp.nao"
         minSdk = 25
-        targetSdk = 36
+        targetSdk = 37
         versionCode = 3
         versionName = "0.2.1"
 
