@@ -989,7 +989,15 @@ fun OtpList(
 
 @Preview(showBackground = true)
 @Composable
-private fun GreetingPreview() {
+private fun OtpListPreview() {
+    val refreshedItem = HotpItem(
+        name = "Lichess",
+        extraInfo = "not_a_bot_i_swear",
+        secret = "B2C3FFFF",
+        counter = 3,
+        Digest.Sha512,
+    )
+
     val dummyEntries = listOf(
         TotpItem(
             name = "Google",
@@ -1005,19 +1013,20 @@ private fun GreetingPreview() {
             periodSeconds = 5,
             Digest.Sha256,
         ),
-        TotpItem(
+        HotpItem(
             name = "Discord",
             extraInfo = "nao_fan_92",
             secret = "AAAAAAAACC",
-            periodSeconds = 1,
+            counter = 3,
             Digest.Sha512,
         ),
+        refreshedItem,
     )
 
     NaoTheme {
         OtpList(
             items = dummyEntries,
-            refreshedInSession = emptySet(),
+            refreshedInSession = setOf(refreshedItem),
             onItemClick = { _, _ -> },
             onLongClick = {},
         )
