@@ -1,0 +1,36 @@
+product: android/app
+
+dependencies:
+  - $libs.androidx.core.ktx
+  - $libs.atlassian.onetime
+  - $libs.androidx.lifecycle.runtime.ktx
+  - $libs.androidx.activity.compose
+  - bom: $libs.androidx.compose.bom
+  - androidx.compose.ui:ui
+  - androidx.compose.ui:ui-graphics
+  - androidx.compose.ui:ui-tooling-preview
+  - androidx.compose.material3:material3
+  - androidx.compose.ui:ui-tooling
+
+test-dependencies:
+  - $libs.junit
+  - $libs.robolectric
+  - $libs.androidx.junit
+  - $libs.androidx.espresso.core
+  - $libs.androidx.espresso.intents
+  - androidx.compose.ui:ui-test-junit4
+  - androidx.compose.ui:ui-test-manifest
+
+settings:
+  android:
+    namespace: ltd.evilcorp.nao
+    applicationId: ltd.evilcorp.nao
+    minSdk: 25
+    compileSdk: 37
+    targetSdk: 37
+    versionCode: 4
+    versionName: "0.3.0"
+  compose: enabled
+  junit: junit-4
+  kotlin:
+    version: 2.4.20

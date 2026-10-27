@@ -25,9 +25,13 @@ jobs:
       - run: npx prettier --ignore-path .gitignore --write .
       - run: git diff --exit-code
 
-  gradle:
+  kotlin-toolchain:
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
     strategy:
+      fail-fast: false
       matrix:
         os:
           - ubuntu-26.04
@@ -35,16 +39,8 @@ jobs:
           - windows-2025
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-java@v6
-        with:
-          distribution: temurin
-          java-version: 17
-      - uses: gradle/actions/setup-gradle@v6
-        with:
-          # The cache here is proprietary with a weird license.
-          # https://github.com/gradle/actions/blob/39e147cb9de83bb9910b8ef8bd7fff0ee20fcd6f/docs/setup-gradle.md#licensing-notice
-          cache-disabled: true
-      - run: ./gradlew build
+      - run: ./kotlin build
+      - run: ./kotlin test --exclude-classes=ltd.evilcorp.nao.IntegrationTest
       # https://github.blog/changelog/2023-02-23-hardware-accelerated-android-virtualization-on-actions-windows-and-linux-larger-hosted-runners/
       - name: Enable hardware acceleration
         if: startsWith(matrix.os, 'ubuntu')
@@ -58,7 +54,7 @@ jobs:
         with:
           api-level: 36
           arch: x86_64
-          script: ./gradlew connectedCheck
+          script: ./kotlin test --include-classes=ltd.evilcorp.nao.IntegrationTest
 
 concurrency:
   group: ${{ github.head_ref || github.run_id }}
